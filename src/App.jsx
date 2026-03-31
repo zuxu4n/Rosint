@@ -664,6 +664,26 @@ export default function App() {
                         )}
                     </div>
                 )}
+
+                {/* SEO content — visible but subtle, fully crawlable */}
+                {!searched && (
+                    <div className="mt-16 pb-16 border-t border-[#1c1c1d] pt-10">
+                        <div className="grid grid-cols-1 gap-8 text-[#5a5a5b] text-[12px] leading-relaxed sm:grid-cols-3">
+                            <div>
+                                <h2 className="text-[#818384] font-medium mb-2 text-[13px]">View deleted Reddit posts</h2>
+                                <p>redditOSINT lets you recover deleted Reddit posts and removed comments from any user. Content is sourced from distributed open-source archives that capture Reddit data before it disappears.</p>
+                            </div>
+                            <div>
+                                <h2 className="text-[#818384] font-medium mb-2 text-[13px]">Search private accounts</h2>
+                                <p>Browse the post and comment history of private or suspended Reddit accounts. As long as the content was archived, it remains searchable even after the account is made private or banned.</p>
+                            </div>
+                            <div>
+                                <h2 className="text-[#818384] font-medium mb-2 text-[13px]">Powered by open archives</h2>
+                                <p>Results are fetched in parallel from Arctic Shift and PullPush, two independent Reddit archives. Combining both sources gives the most complete picture of a user's Reddit history.</p>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Results */}
