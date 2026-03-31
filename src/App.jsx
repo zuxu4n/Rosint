@@ -745,12 +745,12 @@ export default function App() {
                     {/* Archive notice */}
                     {!initialLoading && (
                         <div className="text-[11px] text-[#818384] mb-3 leading-relaxed">
-                            This archive updates <strong className="text-[#818384]">monthly</strong>. For newer activity,{" "}
+                            Archive coverage may vary.{" "}
                             <a href={`https://www.reddit.com/search/?q=author%3A%22${query}%22&type=${activeTab}`}
                                target="_blank" rel="noopener noreferrer" className="text-[#ff4500] hover:underline">
-                                click here
+                                Click here
                             </a>{" "}
-                            to search Reddit directly.
+                            to search Reddit directly for the most recent activity.
                             <br />
                             <span className="text-[#5a5a5b]">Note: Doing so will not show deleted posts or comments.</span>
                         </div>
