@@ -1,10 +1,9 @@
-# ROSINT.dev | redditOSINT
+# Rosint.dev | redditOSINT
 
 **Reddit user intelligence tool** — search any Reddit user's full post and comment history, including private accounts and deleted content.
 
 [rosint.dev](https://rosint.dev)
 
----
 ## Features
 
 - **Dual-source search** — Arctic Shift and PullPush queried in parallel, results merged and deduplicated by post/comment ID
@@ -14,7 +13,6 @@
 - **Pagination** — timestamp-based cursor pagination (100 results per page)
 - **No login required** — fully frontend, no backend, no auth
 
----
 
 ## Tech stack
 
@@ -25,7 +23,6 @@
 | APIs | [Arctic Shift](https://github.com/ArthurHeitmann/arctic_shift), [PullPush](https://pullpush.io) |
 | Hosting | Vercel |
 
----
 
 ## Running locally
 ```bash
@@ -37,7 +34,6 @@ npm run dev
 
 Then open [http://localhost:5173](http://localhost:5173).
 
----
 
 ## "Backend"
 
@@ -47,27 +43,6 @@ Arctic Shift:  https://arctic-shift.photon-reddit.com/api/posts/search?author={u
 PullPush:      https://api.pullpush.io/reddit/search/submission/?test&author={username}&limit=100&sort=desc
 ```
 
-Results are merged, deduplicated by `id`, and sorted by `created_utc` descending. Pagination uses `before`/`after` timestamp cursors — these persist across page turns even when date filters are active.
-
-Date filters are converted from `YYYY-MM-DD` to Unix epoch seconds before being sent to both APIs.
-
----
-
-## Project structure
-```
-redditOSINT/
-├── src/
-│   └── App.jsx          # Entire app — components, hooks, API logic
-├── public/
-│   ├── bot.png          # Header logo
-│   ├── rosintTitle.png  # Homepage title image
-│   ├── changelog.html   # Documentation / updates page
-│   └── dih.jpg          # Changelog page image
-├── index.html
-└── package.json
-```
-
----
 
 ## Limitations
 
@@ -75,7 +50,6 @@ redditOSINT/
 - Arctic Shift and PullPush have no guaranteed uptime
 - If both APIs are down, no results will be returned
 
----
 
 ## Credits
 
