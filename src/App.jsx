@@ -204,57 +204,97 @@ const AnimeFace = () => (
 // ─── Post Card ────────────────────────────────────────────────────────────────
 
 function PostCard({ post }) {
+    const [bodyOpen, setBodyOpen] = useState(false);
     const thumb = getPostThumbnail(post);
     const postUrl = `${REDDIT_BASE}${post.permalink}`;
+    const hasBody = post.selftext && post.selftext !== "[deleted]" && post.selftext !== "[removed]";
+
     return (
-        <a href={postUrl} target="_blank" rel="noopener noreferrer"
-           className="group block bg-[#1a1a1b] border border-[#343536] rounded overflow-hidden hover:border-[#818384] transition-all duration-150 hover:shadow-lg">
-            <div className="flex">
-                <div className="flex flex-col items-center justify-start gap-1 px-2.5 py-3 bg-[#161617] min-w-[44px]">
-                    <IconArrowUp />
-                    <span className="text-[11px] font-bold text-[#d7dadc] leading-none">{fmtNum(post.score)}</span>
-                </div>
-                <div className="flex flex-1 gap-3 p-3 min-w-0">
-                    <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 text-[11px] text-[#818384] mb-1.5 flex-wrap">
-                            <span className="font-medium text-[#d7dadc]">{post.subreddit_name_prefixed}</span>
-                            <span>·</span>
-                            <span>{timeAgo(post.created_utc)}</span>
-                            {post.link_flair_text && (
-                                <>
-                                    <span>·</span>
-                                    <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-[#272729] text-[#d7dadc] border border-[#343536]">
-                    {post.link_flair_text}
-                  </span>
-                                </>
-                            )}
-                        </div>
-                        <p className="text-sm font-medium text-[#d7dadc] leading-snug mb-1.5 group-hover:text-white transition-colors line-clamp-2">
-                            {post.title}
-                        </p>
-                        {post.selftext && post.selftext !== "[deleted]" && post.selftext !== "[removed]" && (
-                            <p className="text-[12px] text-[#818384] leading-relaxed line-clamp-2 mb-2">{post.selftext}</p>
-                        )}
-                        <div className="flex items-center gap-3 text-[11px] text-[#818384]">
-              <span className="flex items-center gap-1">
-                <IconComment />{fmtNum(post.num_comments)} comments
-              </span>
-                            {post.domain && !post.is_self && (
-                                <span className="flex items-center gap-1 text-[#4fbdba] truncate max-w-[200px]">
-                  <IconExternal /><span className="truncate">{post.domain}</span>
-                </span>
-                            )}
-                        </div>
+        <div className="bg-[#1a1a1b] border border-[#343536] rounded overflow-hidden hover:border-[#818384] transition-all duration-150 hover:shadow-lg group">
+            <a href={postUrl} target="_blank" rel="noopener noreferrer" className="block">
+                <div className="flex">
+                    <div className="flex flex-col items-center justify-start gap-1 px-2.5 py-3 bg-[#161617] min-w-[44px]">
+                        <IconArrowUp />
+                        <span className="text-[11px] font-bold text-[#d7dadc] leading-none">{fmtNum(post.score)}</span>
                     </div>
-                    {thumb && (
-                        <div className="flex-shrink-0 w-[70px] h-[52px] rounded overflow-hidden bg-[#272729]">
-                            <img src={thumb} alt="" className="w-full h-full object-cover" loading="lazy"
-                                 onError={(e) => { e.target.style.display = "none"; }} />
+                    <div className="flex-1 p-3 min-w-0">
+                        {/* Top row: text + thumbnail side by side */}
+                        <div className="flex gap-3">
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5 text-[11px] text-[#818384] mb-1.5 flex-wrap">
+                                    <span className="font-medium text-[#d7dadc]">{post.subreddit_name_prefixed}</span>
+                                    <span>·</span>
+                                    <span>{timeAgo(post.created_utc)}</span>
+                                    {post.link_flair_text && (
+                                        <>
+                                            <span>·</span>
+                                            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-[#272729] text-[#d7dadc] border border-[#343536]">
+                                                {post.link_flair_text}
+                                            </span>
+                                        </>
+                                    )}
+                                </div>
+                                <p className="text-sm font-medium text-[#d7dadc] leading-snug mb-1.5 group-hover:text-white transition-colors line-clamp-2">
+                                    {post.title}
+                                </p>
+                                {/* Comments + domain — only show show-body inline when no thumb */}
+                                <div className={`flex items-center gap-3 text-[11px] text-[#818384] ${thumb ? "" : ""}`}>
+                                    <span className="flex items-center gap-1">
+                                        <IconComment />{fmtNum(post.num_comments)} comments
+                                    </span>
+                                    {post.domain && !post.is_self && (
+                                        <span className="flex items-center gap-1 text-[#4fbdba] truncate max-w-[200px]">
+                                            <IconExternal /><span className="truncate">{post.domain}</span>
+                                        </span>
+                                    )}
+                                    {/* Show body inline only when there's no thumbnail */}
+                                    {hasBody && !thumb && (
+                                        <button
+                                            onClick={(e) => { e.preventDefault(); setBodyOpen(o => !o); }}
+                                            className="flex items-center gap-1 ml-auto text-[#818384] hover:text-[#fe5301] transition-colors"
+                                        >
+                                            <svg className={`w-3 h-3 transition-transform duration-200 ${bodyOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                            {bodyOpen ? "hide body" : "show body"}
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                            {thumb && (
+                                <div className="flex-shrink-0 w-[70px] h-[52px] rounded overflow-hidden bg-[#272729]">
+                                    <img src={thumb} alt="" className="w-full h-full object-cover" loading="lazy"
+                                         onError={(e) => { e.target.style.display = "none"; }} />
+                                </div>
+                            )}
                         </div>
-                    )}
+                        {/* Show body button below thumbnail row when thumb exists */}
+                        {hasBody && thumb && (
+                            <div className="flex items-center mt-2 text-[11px] text-[#818384]">
+                                <button
+                                    onClick={(e) => { e.preventDefault(); setBodyOpen(o => !o); }}
+                                    className="flex items-center gap-1 ml-auto hover:text-[#fe5301] transition-colors"
+                                >
+                                    <svg className={`w-3 h-3 transition-transform duration-200 ${bodyOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                    {bodyOpen ? "hide body" : "show body"}
+                                </button>
+                            </div>
+                        )}
+                    </div>
                 </div>
-            </div>
-        </a>
+            </a>
+
+            {/* Expanded body */}
+            {hasBody && bodyOpen && (
+                <div className="border-t border-[#272729] px-4 pt-3 pb-3 ml-[44px]">
+                    <p className="text-[12px] text-[#d7dadc] leading-relaxed whitespace-pre-wrap">
+                        {post.selftext}
+                    </p>
+                </div>
+            )}
+        </div>
     );
 }
 
