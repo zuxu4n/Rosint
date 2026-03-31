@@ -1,17 +1,17 @@
 # Rosint.dev | redditOSINT
 
-**Reddit user intelligence tool** — search any Reddit user's full post and comment history, including private accounts and deleted content.
+**Reddit user intelligence tool**: search any Reddit user's full post and comment history, including private accounts and deleted content.
 
 [rosint.dev](https://rosint.dev)
 
 ## Features
 
-- **Dual-source search** — Arctic Shift and PullPush queried in parallel, results merged and deduplicated by post/comment ID
-- **Posts tab** — title, subreddit, score, comment count, timestamp, thumbnail, body snippet
-- **Comments tab** — full comment body, subreddit, score, link to original thread
-- **Date range filter** — filter results by before/after date using a calendar picker
-- **Pagination** — timestamp-based cursor pagination (100 results per page)
-- **No login required** — fully frontend, no backend, no auth
+- **Dual-source search** ? Arctic Shift and PullPush queried in parallel, results merged and deduplicated by post/comment ID
+- **Posts tab** > title, subreddit, score, comment count, timestamp, thumbnail, body snippet
+- **Comments tab** > full comment body, subreddit, score, link to original thread
+- **Date range filter** > filter results by before/after date using a calendar picker
+- **Pagination** > timestamp-based cursor pagination (100 results per page)
+- **No login required** > fully frontend, no backend, no auth
 
 
 ## Tech stack
