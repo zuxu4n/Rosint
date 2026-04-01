@@ -474,6 +474,8 @@ export default function App() {
     const [initialLoading, setInitialLoading] = useState(false);
     const [dateFrom, setDateFrom]           = useState("");
     const [dateTo, setDateTo]               = useState("");
+    const [sortOrder, setSortOrder]         = useState("desc");
+    const [showDeleted, setShowDeleted]     = useState(false);
 
     const posts    = usePaginatedFetch("posts");
     const comments = usePaginatedFetch("comments");
@@ -649,7 +651,7 @@ export default function App() {
                 </form>
 
                 {!searched && (
-                    <div className="flex items-center gap-2 flex-wrap mt-3">
+                    <div className="flex flex-wrap items-center gap-2 mt-3">
                         <span className="text-[11px] text-[#818384]">From</span>
                         <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
                                className="bg-[#1a1a1b] border border-[#343536] rounded-sm px-2 py-1 text-[12px] text-[#d7dadc] focus:outline-none focus:border-[#ff4500] transition-colors [color-scheme:dark]" />
@@ -664,26 +666,6 @@ export default function App() {
                         )}
                     </div>
                 )}
-
-                {/* SEO content — visible but subtle, fully crawlable */}
-                {!searched && (
-                    <div className="mt-16 pb-16 border-t border-[#1c1c1d] pt-10">
-                        <div className="grid grid-cols-1 gap-8 text-[#5a5a5b] text-[12px] leading-relaxed sm:grid-cols-3">
-                            <div>
-                                <h2 className="text-[#818384] font-medium mb-2 text-[13px]">View deleted Reddit posts</h2>
-                                <p>redditOSINT lets you recover deleted Reddit posts and removed comments from any user. Content is sourced from distributed open-source archives that capture Reddit data before it disappears.</p>
-                            </div>
-                            <div>
-                                <h2 className="text-[#818384] font-medium mb-2 text-[13px]">Search private accounts</h2>
-                                <p>Browse the post and comment history of private or suspended Reddit accounts. As long as the content was archived, it remains searchable even after the account is made private or banned.</p>
-                            </div>
-                            <div>
-                                <h2 className="text-[#818384] font-medium mb-2 text-[13px]">Powered by open archives</h2>
-                                <p>Results are fetched in parallel from Arctic Shift and PullPush, two independent Reddit archives. Combining both sources gives the most complete picture of a user's Reddit history.</p>
-                            </div>
-                        </div>
-                    </div>
-                )}
             </div>
 
             {/* Results */}
@@ -692,7 +674,7 @@ export default function App() {
 
                     {/* Summary + date filters */}
                     {!initialLoading && (
-                        <div className="flex items-center justify-between gap-4 mb-4 flex-wrap">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
                             <p className="text-[12px] text-[#818384]">
                                 Results for <span className="text-[#ff4500] font-medium">u/{query}</span>
                                 {allSources.length > 0 && (
@@ -712,7 +694,7 @@ export default function App() {
                                     })}</>
                                 )}
                             </p>
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
                                 <span className="text-[11px] text-[#818384]">From</span>
                                 <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
                                        className="bg-[#1a1a1b] border border-[#343536] rounded-sm px-2 py-1 text-[12px] text-[#d7dadc] focus:outline-none focus:border-[#ff4500] transition-colors [color-scheme:dark]" />
@@ -745,21 +727,40 @@ export default function App() {
                                         onClick={() => setActiveTab(tab)} />
                             ))}
                         </div>
-                        {!initialLoading && !active.loading && active.items.length > 0 && (active.page > 1 || active.items.length >= LIMIT) && (
-                            <div className="flex items-center gap-2 pb-2">
-                                <button onClick={() => active.goPrev(query)} disabled={active.page <= 1 || active.loading}
-                                        className="flex items-center justify-center w-7 h-7 rounded-sm border border-[#343536] hover:border-[#818384] text-[#d7dadc] transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
-                                    <IconChevronLeft />
-                                </button>
-                                <span className="text-[11px] text-[#818384]">
-                                    {active.loading ? <IconSpinner /> : `Page ${active.page}`}
-                                </span>
-                                <button onClick={() => active.goNext(query)} disabled={active.items.length < LIMIT || active.loading}
-                                        className="flex items-center justify-center w-7 h-7 rounded-sm border border-[#343536] hover:border-[#818384] text-[#d7dadc] transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
-                                    <IconChevronRight />
-                                </button>
-                            </div>
-                        )}
+                        <div className="flex items-center gap-2 pb-2">
+                            {/* Sort select */}
+                            <select
+                                value={sortOrder}
+                                onChange={(e) => setSortOrder(e.target.value)}
+                                className="text-[11px] text-[#818384] bg-[#1a1a1b] border border-[#343536] hover:border-[#818384] rounded px-2 py-1 transition-colors focus:outline-none focus:border-[#fe5301] cursor-pointer"
+                            >
+                                <option value="desc">Newest</option>
+                                <option value="asc">Oldest</option>
+                                <option value="top">Top</option>
+                            </select>
+                            {/* Deleted filter toggle */}
+                            <button
+                                onClick={() => setShowDeleted(d => !d)}
+                                className={`text-[11px] px-2 py-1 rounded border transition-colors ${showDeleted ? "border-[#fe5301] text-[#fe5301]" : "border-[#343536] text-[#818384] hover:border-[#818384]"}`}
+                            >
+                                deleted
+                            </button>
+                            {!initialLoading && !active.loading && active.items.length > 0 && (active.page > 1 || active.items.length >= LIMIT) && (
+                                <>
+                                    <button onClick={() => active.goPrev(query)} disabled={active.page <= 1 || active.loading}
+                                            className="flex items-center justify-center w-7 h-7 rounded-sm border border-[#343536] hover:border-[#818384] text-[#d7dadc] transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+                                        <IconChevronLeft />
+                                    </button>
+                                    <span className="text-[11px] text-[#818384]">
+                                        {active.loading ? <IconSpinner /> : `Page ${active.page}`}
+                                    </span>
+                                    <button onClick={() => active.goNext(query)} disabled={active.items.length < LIMIT || active.loading}
+                                            className="flex items-center justify-center w-7 h-7 rounded-sm border border-[#343536] hover:border-[#818384] text-[#d7dadc] transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+                                        <IconChevronRight />
+                                    </button>
+                                </>
+                            )}
+                        </div>
                     </div>
 
                     {/* Archive notice */}
@@ -789,12 +790,26 @@ export default function App() {
                     ) : (
                         <>
                             <div className="flex flex-col gap-2">
-                                {activeTab === "posts" && posts.items.map((post) => (
-                                    <PostCard key={post.id} post={post} />
-                                ))}
-                                {activeTab === "comments" && comments.items.map((comment) => (
-                                    <CommentCard key={comment.id} comment={comment} />
-                                ))}
+                                {activeTab === "posts" && [...posts.items]
+                                    .filter(post => !showDeleted || post.selftext === "[deleted]" || post.selftext === "[removed]" || post.author === "[deleted]")
+                                    .sort((a, b) =>
+                                        sortOrder === "desc" ? b.created_utc - a.created_utc :
+                                            sortOrder === "asc"  ? a.created_utc - b.created_utc :
+                                                (b.score ?? 0) - (a.score ?? 0)
+                                    )
+                                    .map((post) => (
+                                        <PostCard key={post.id} post={post} />
+                                    ))}
+                                {activeTab === "comments" && [...comments.items]
+                                    .filter(comment => !showDeleted || comment.body === "[deleted]" || comment.body === "[removed]" || comment.author === "[deleted]")
+                                    .sort((a, b) =>
+                                        sortOrder === "desc" ? b.created_utc - a.created_utc :
+                                            sortOrder === "asc"  ? a.created_utc - b.created_utc :
+                                                (b.score ?? 0) - (a.score ?? 0)
+                                    )
+                                    .map((comment) => (
+                                        <CommentCard key={comment.id} comment={comment} />
+                                    ))}
                             </div>
                             <Pagination
                                 page={active.page}
@@ -807,6 +822,15 @@ export default function App() {
                         </>
                     )}
                 </div>
+            )}
+
+            {/* SEO footer — fixed to bottom */}
+            {!searched && (
+                <footer className="fixed bottom-0 left-0 right-0 z-10 py-2 bg-[#0d0d0d] border-t border-[#1c1c1d]">
+                    <p className="text-[11px] text-[#3a3a3b] leading-relaxed text-center">
+                        redditOSINT is a free tool to search deleted Reddit posts, removed comments, and private Reddit accounts using open-source archives including Arctic Shift and PullPush.
+                    </p>
+                </footer>
             )}
         </div>
     );
