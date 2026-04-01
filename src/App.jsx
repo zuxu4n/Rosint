@@ -602,7 +602,10 @@ export default function App() {
                         onClick={() => { setSearched(false); setUsername(""); setQuery(""); setDateFrom(""); setDateTo(""); window.history.pushState({}, "", "/"); }}
                         className="logo-btn group flex items-center gap-2 relative"
                     >
-                        <img src="/bot.png" alt="logo" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+                        <picture>
+                            <source srcSet="/bot.webp" type="image/webp" />
+                            <img src="/bot.png" alt="logo" width="40" height="40" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+                        </picture>
                         <span className="text-[22px] font-semibold tracking-tight text-white whitespace-nowrap max-w-0 overflow-hidden opacity-0 group-hover:max-w-xs group-hover:opacity-100 transition-all duration-700 ease-out">
                             reddit<span className="text-[#fe5301]">OSINT</span>
                         </span>
@@ -626,194 +629,200 @@ export default function App() {
             </header>
 
             {/* Hero / Search */}
-            <div className={`max-w-3xl mx-auto px-4 transition-all duration-300 ${searched ? "pt-6" : "pt-20"}`}>
-                {!searched && (
-                    <div className="text-center mb-2">
-                        <img src="/rosintTitle.png" alt="redditOSINT" className="mx-auto mb-4" style={{ width: "578px", maxWidth: "90vw" }} />
-                        <p className="text-sm text-[#cccccc]">View private accounts and deleted posts/comments from any user via distributed open-source archives.</p>
-                    </div>
-                )}
+            <main>
+                <div className={`max-w-3xl mx-auto px-4 transition-all duration-300 ${searched ? "pt-6" : "pt-20"}`}>
+                    {!searched && (
+                        <div className="text-center mb-2">
+                            <picture>
+                                <source srcSet="/rosintTitle.webp" type="image/webp" />
+                                <img src="/rosintTitle.png" alt="redditOSINT" width="578" height="284" className="mx-auto mb-4" style={{ width: "578px", maxWidth: "90vw" }} />
+                            </picture>
+                            <p className="text-sm text-[#cccccc]">View private accounts and deleted posts/comments from any user via distributed open-source archives.</p>
+                        </div>
+                    )}
 
-                <form onSubmit={handleSubmit} className="flex gap-2">
-                    <div className="relative flex-1">
-                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#cccccc] text-base font-medium select-none">u/</span>
-                        <input type="text" value={username} onChange={(e) => setUsername(e.target.value)}
-                               placeholder="username"
-                               className="w-full bg-[#1a1a1b] border border-[#343536] rounded pl-10 pr-4 py-2.5 text-sm text-white placeholder-[#818384] focus:outline-none focus:border-[#ff4500] transition-colors"
-                               autoFocus />
-                    </div>
-                    <button type="submit" disabled={!username.trim() || initialLoading}
-                            className="flex items-center gap-2 bg-[#ff4500] hover:bg-[#e03d00] disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium text-sm px-5 py-2.5 rounded transition-colors">
-                        {initialLoading ? <IconSpinner /> : <IconSearch />}
-                        {initialLoading && "Searching…"}
-                    </button>
-                </form>
+                    <form onSubmit={handleSubmit} className="flex gap-2">
+                        <div className="relative flex-1">
+                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#cccccc] text-base font-medium select-none">u/</span>
+                            <input aria-label="Reddit username" type="text" value={username} onChange={(e) => setUsername(e.target.value)}
+                                   placeholder="username"
+                                   className="w-full bg-[#1a1a1b] border border-[#343536] rounded pl-10 pr-4 py-2.5 text-sm text-white placeholder-[#818384] focus:outline-none focus:border-[#ff4500] transition-colors"
+                                   autoFocus />
+                        </div>
+                        <button type="submit" disabled={!username.trim() || initialLoading}
+                                className="flex items-center gap-2 bg-[#ff4500] hover:bg-[#e03d00] disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium text-sm px-5 py-2.5 rounded transition-colors">
+                            {initialLoading ? <IconSpinner /> : <IconSearch />}
+                            {initialLoading && "Searching…"}
+                        </button>
+                    </form>
 
-                {!searched && (
-                    <div className="flex flex-wrap items-center gap-2 mt-3">
-                        <span className="text-[11px] text-[#818384]">From</span>
-                        <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
-                               className="bg-[#1a1a1b] border border-[#343536] rounded-sm px-2 py-1 text-[12px] text-[#d7dadc] focus:outline-none focus:border-[#ff4500] transition-colors [color-scheme:dark]" />
-                        <span className="text-[11px] text-[#818384]">To</span>
-                        <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
-                               className="bg-[#1a1a1b] border border-[#343536] rounded-sm px-2 py-1 text-[12px] text-[#d7dadc] focus:outline-none focus:border-[#ff4500] transition-colors [color-scheme:dark]" />
-                        {(dateFrom || dateTo) && (
-                            <button type="button" onClick={() => { setDateFrom(""); setDateTo(""); }}
-                                    className="px-3 py-1 text-[12px] text-[#818384] hover:text-[#d7dadc] transition-colors">
-                                Clear
-                            </button>
-                        )}
-                    </div>
-                )}
-            </div>
+                    {!searched && (
+                        <div className="flex flex-wrap items-center gap-2 mt-3">
+                            <span className="text-[11px] text-[#818384]">From</span>
+                            <input aria-label="Date from" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+                                   className="bg-[#1a1a1b] border border-[#343536] rounded-sm px-2 py-1 text-[12px] text-[#d7dadc] focus:outline-none focus:border-[#ff4500] transition-colors [color-scheme:dark]" />
+                            <span className="text-[11px] text-[#818384]">To</span>
+                            <input aria-label="Date to" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+                                   className="bg-[#1a1a1b] border border-[#343536] rounded-sm px-2 py-1 text-[12px] text-[#d7dadc] focus:outline-none focus:border-[#ff4500] transition-colors [color-scheme:dark]" />
+                            {(dateFrom || dateTo) && (
+                                <button type="button" onClick={() => { setDateFrom(""); setDateTo(""); }}
+                                        className="px-3 py-1 text-[12px] text-[#818384] hover:text-[#d7dadc] transition-colors">
+                                    Clear
+                                </button>
+                            )}
+                        </div>
+                    )}
+                </div>
 
-            {/* Results */}
-            {searched && (
-                <div className="max-w-3xl mx-auto px-4 mt-6 pb-16">
+                {/* Results */}
+                {searched && (
+                    <div className="max-w-3xl mx-auto px-4 mt-6 pb-16">
 
-                    {/* Summary + date filters */}
-                    {!initialLoading && (
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
-                            <p className="text-[12px] text-[#818384]">
-                                Results for <span className="text-[#ff4500] font-medium">u/{query}</span>
-                                {allSources.length > 0 && (
-                                    <> · {allSources.map((src, i) => {
-                                        const url = src === "Arctic Shift"
-                                            ? "https://github.com/ArthurHeitmann/arctic_shift"
-                                            : "https://pullpush.io/";
-                                        return (
-                                            <span key={src}>
+                        {/* Summary + date filters */}
+                        {!initialLoading && (
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+                                <p className="text-[12px] text-[#818384]">
+                                    Results for <span className="text-[#ff4500] font-medium">u/{query}</span>
+                                    {allSources.length > 0 && (
+                                        <> · {allSources.map((src, i) => {
+                                            const url = src === "Arctic Shift"
+                                                ? "https://github.com/ArthurHeitmann/arctic_shift"
+                                                : "https://pullpush.io/";
+                                            return (
+                                                <span key={src}>
                                                 {i > 0 && <span className="text-[#818384]"> + </span>}
-                                                <a href={url} target="_blank" rel="noopener noreferrer"
-                                                   className="text-[#d7dadc] hover:text-white hover:underline transition-colors">
+                                                    <a href={url} target="_blank" rel="noopener noreferrer"
+                                                       className="text-[#d7dadc] hover:text-white hover:underline transition-colors">
                                                     {src}
                                                 </a>
                                             </span>
-                                        );
-                                    })}</>
-                                )}
-                            </p>
-                            <div className="flex flex-wrap items-center gap-2">
-                                <span className="text-[11px] text-[#818384]">From</span>
-                                <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
-                                       className="bg-[#1a1a1b] border border-[#343536] rounded-sm px-2 py-1 text-[12px] text-[#d7dadc] focus:outline-none focus:border-[#ff4500] transition-colors [color-scheme:dark]" />
-                                <span className="text-[11px] text-[#818384]">To</span>
-                                <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
-                                       className="bg-[#1a1a1b] border border-[#343536] rounded-sm px-2 py-1 text-[12px] text-[#d7dadc] focus:outline-none focus:border-[#ff4500] transition-colors [color-scheme:dark]" />
-                                <button onClick={applyFilters} disabled={initialLoading}
-                                        className="px-3 py-1 text-[12px] font-medium bg-[#ff4500] hover:bg-[#e03d00] disabled:opacity-50 text-white rounded-sm transition-colors">
-                                    Apply
-                                </button>
-                                {(dateFrom || dateTo) && (
-                                    <button onClick={clearFilters} disabled={initialLoading}
-                                            className="px-3 py-1 text-[12px] text-[#818384] hover:text-[#d7dadc] transition-colors">
-                                        Clear
+                                            );
+                                        })}</>
+                                    )}
+                                </p>
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <span className="text-[11px] text-[#818384]">From</span>
+                                    <input aria-label="Date from" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+                                           className="bg-[#1a1a1b] border border-[#343536] rounded-sm px-2 py-1 text-[12px] text-[#d7dadc] focus:outline-none focus:border-[#ff4500] transition-colors [color-scheme:dark]" />
+                                    <span className="text-[11px] text-[#818384]">To</span>
+                                    <input aria-label="Date to" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+                                           className="bg-[#1a1a1b] border border-[#343536] rounded-sm px-2 py-1 text-[12px] text-[#d7dadc] focus:outline-none focus:border-[#ff4500] transition-colors [color-scheme:dark]" />
+                                    <button onClick={applyFilters} disabled={initialLoading}
+                                            className="px-3 py-1 text-[12px] font-medium bg-[#ff4500] hover:bg-[#e03d00] disabled:opacity-50 text-white rounded-sm transition-colors">
+                                        Apply
                                     </button>
-                                )}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Tabs + inline pagination */}
-                    <div className="flex items-center border-b border-[#1c1c1d] mb-4">
-                        <div className="flex flex-1">
-                            {TABS.map((tab) => (
-                                <TabBtn key={tab}
-                                        label={tab.charAt(0).toUpperCase() + tab.slice(1)}
-                                        count={tab === "posts" ? posts.items.length : comments.items.length}
-                                        countIsPlus={tab === "posts" ? posts.items.length >= LIMIT : comments.items.length >= LIMIT}
-                                        active={activeTab === tab}
-                                        onClick={() => setActiveTab(tab)} />
-                            ))}
-                        </div>
-                        {!initialLoading && !active.loading && active.items.length > 0 && (active.page > 1 || active.items.length >= LIMIT) && (
-                            <div className="flex items-center gap-2 pb-2">
-                                <button onClick={() => active.goPrev(query)} disabled={active.page <= 1 || active.loading}
-                                        className="flex items-center justify-center w-7 h-7 rounded-sm border border-[#343536] hover:border-[#818384] text-[#d7dadc] transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
-                                    <IconChevronLeft />
-                                </button>
-                                <span className="text-[11px] text-[#818384]">
-                                    {active.loading ? <IconSpinner /> : `Page ${active.page}`}
-                                </span>
-                                <button onClick={() => active.goNext(query)} disabled={active.items.length < LIMIT || active.loading}
-                                        className="flex items-center justify-center w-7 h-7 rounded-sm border border-[#343536] hover:border-[#818384] text-[#d7dadc] transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
-                                    <IconChevronRight />
-                                </button>
+                                    {(dateFrom || dateTo) && (
+                                        <button onClick={clearFilters} disabled={initialLoading}
+                                                className="px-3 py-1 text-[12px] text-[#818384] hover:text-[#d7dadc] transition-colors">
+                                            Clear
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                         )}
+
+                        {/* Tabs + inline pagination */}
+                        <div className="flex items-center border-b border-[#1c1c1d] mb-4">
+                            <div className="flex flex-1">
+                                {TABS.map((tab) => (
+                                    <TabBtn key={tab}
+                                            label={tab.charAt(0).toUpperCase() + tab.slice(1)}
+                                            count={tab === "posts" ? posts.items.length : comments.items.length}
+                                            countIsPlus={tab === "posts" ? posts.items.length >= LIMIT : comments.items.length >= LIMIT}
+                                            active={activeTab === tab}
+                                            onClick={() => setActiveTab(tab)} />
+                                ))}
+                            </div>
+                            {!initialLoading && !active.loading && active.items.length > 0 && (active.page > 1 || active.items.length >= LIMIT) && (
+                                <div className="flex items-center gap-2 pb-2">
+                                    <button onClick={() => active.goPrev(query)} disabled={active.page <= 1 || active.loading}
+                                            className="flex items-center justify-center w-7 h-7 rounded-sm border border-[#343536] hover:border-[#818384] text-[#d7dadc] transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+                                        <IconChevronLeft />
+                                    </button>
+                                    <span className="text-[11px] text-[#818384]">
+                                    {active.loading ? <IconSpinner /> : `Page ${active.page}`}
+                                </span>
+                                    <button onClick={() => active.goNext(query)} disabled={active.items.length < LIMIT || active.loading}
+                                            className="flex items-center justify-center w-7 h-7 rounded-sm border border-[#343536] hover:border-[#818384] text-[#d7dadc] transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+                                        <IconChevronRight />
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Archive notice + sort */}
+                        {!initialLoading && (
+                            <div className="flex items-start justify-between gap-3 mb-3">
+                                <div className="text-[11px] text-[#818384] leading-relaxed">
+                                    Archive coverage may vary.{" "}
+                                    <a href={`https://www.reddit.com/search/?q=author%3A%22${query}%22&type=${activeTab}`}
+                                       target="_blank" rel="noopener noreferrer" className="text-[#ff4500] hover:underline">
+                                        Click here
+                                    </a>{" "}
+                                    to search Reddit directly for the most recent activity.
+                                    <br />
+                                    <span className="text-[#5a5a5b]">Note: Doing so will not show deleted posts or comments.</span>
+                                </div>
+                                <select
+                                    aria-label="Sort order"
+                                    value={sortOrder}
+                                    onChange={(e) => setSortOrder(e.target.value)}
+                                    className="flex-shrink-0 text-[11px] text-[#818384] bg-[#1a1a1b] border border-[#343536] hover:border-[#818384] rounded px-2 py-1 transition-colors focus:outline-none focus:border-[#fe5301] cursor-pointer"
+                                >
+                                    <option value="desc">Newest</option>
+                                    <option value="asc">Oldest</option>
+                                    <option value="top">Top</option>
+                                </select>
+                            </div>
+                        )}
+
+                        {/* Tab content */}
+                        {initialLoading || active.loading ? (
+                            <div className="flex items-center justify-center py-20 gap-3 text-[#818384]">
+                                <IconSpinner />
+                                <span className="text-sm">Fetching from Arctic Shift + PullPush…</span>
+                            </div>
+                        ) : active.error ? (
+                            <ErrorState message={active.error} />
+                        ) : active.items.length === 0 ? (
+                            <EmptyState tab={activeTab} />
+                        ) : (
+                            <>
+                                <div className="flex flex-col gap-2">
+                                    {activeTab === "posts" && [...posts.items]
+                                        .sort((a, b) =>
+                                            sortOrder === "desc" ? b.created_utc - a.created_utc :
+                                                sortOrder === "asc"  ? a.created_utc - b.created_utc :
+                                                    (b.score ?? 0) - (a.score ?? 0)
+                                        )
+                                        .map((post) => (
+                                            <PostCard key={post.id} post={post} />
+                                        ))}
+                                    {activeTab === "comments" && [...comments.items]
+                                        .sort((a, b) =>
+                                            sortOrder === "desc" ? b.created_utc - a.created_utc :
+                                                sortOrder === "asc"  ? a.created_utc - b.created_utc :
+                                                    (b.score ?? 0) - (a.score ?? 0)
+                                        )
+                                        .map((comment) => (
+                                            <CommentCard key={comment.id} comment={comment} />
+                                        ))}
+                                </div>
+                                <Pagination
+                                    page={active.page}
+                                    hasPrev={active.page > 1}
+                                    hasNext={active.items.length >= LIMIT}
+                                    onPrev={() => active.goPrev(query)}
+                                    onNext={() => active.goNext(query)}
+                                    loading={active.loading}
+                                />
+                            </>
+                        )}
                     </div>
+                )}
 
-                    {/* Archive notice + sort */}
-                    {!initialLoading && (
-                        <div className="flex items-start justify-between gap-3 mb-3">
-                            <div className="text-[11px] text-[#818384] leading-relaxed">
-                                Archive coverage may vary.{" "}
-                                <a href={`https://www.reddit.com/search/?q=author%3A%22${query}%22&type=${activeTab}`}
-                                   target="_blank" rel="noopener noreferrer" className="text-[#ff4500] hover:underline">
-                                    Click here
-                                </a>{" "}
-                                to search Reddit directly for the most recent activity.
-                                <br />
-                                <span className="text-[#5a5a5b]">Note: Doing so will not show deleted posts or comments.</span>
-                            </div>
-                            <select
-                                value={sortOrder}
-                                onChange={(e) => setSortOrder(e.target.value)}
-                                className="flex-shrink-0 text-[11px] text-[#818384] bg-[#1a1a1b] border border-[#343536] hover:border-[#818384] rounded px-2 py-1 transition-colors focus:outline-none focus:border-[#fe5301] cursor-pointer"
-                            >
-                                <option value="desc">Newest</option>
-                                <option value="asc">Oldest</option>
-                                <option value="top">Top</option>
-                            </select>
-                        </div>
-                    )}
-
-                    {/* Tab content */}
-                    {initialLoading || active.loading ? (
-                        <div className="flex items-center justify-center py-20 gap-3 text-[#818384]">
-                            <IconSpinner />
-                            <span className="text-sm">Fetching from Arctic Shift + PullPush…</span>
-                        </div>
-                    ) : active.error ? (
-                        <ErrorState message={active.error} />
-                    ) : active.items.length === 0 ? (
-                        <EmptyState tab={activeTab} />
-                    ) : (
-                        <>
-                            <div className="flex flex-col gap-2">
-                                {activeTab === "posts" && [...posts.items]
-                                    .sort((a, b) =>
-                                        sortOrder === "desc" ? b.created_utc - a.created_utc :
-                                            sortOrder === "asc"  ? a.created_utc - b.created_utc :
-                                                (b.score ?? 0) - (a.score ?? 0)
-                                    )
-                                    .map((post) => (
-                                        <PostCard key={post.id} post={post} />
-                                    ))}
-                                {activeTab === "comments" && [...comments.items]
-                                    .sort((a, b) =>
-                                        sortOrder === "desc" ? b.created_utc - a.created_utc :
-                                            sortOrder === "asc"  ? a.created_utc - b.created_utc :
-                                                (b.score ?? 0) - (a.score ?? 0)
-                                    )
-                                    .map((comment) => (
-                                        <CommentCard key={comment.id} comment={comment} />
-                                    ))}
-                            </div>
-                            <Pagination
-                                page={active.page}
-                                hasPrev={active.page > 1}
-                                hasNext={active.items.length >= LIMIT}
-                                onPrev={() => active.goPrev(query)}
-                                onNext={() => active.goNext(query)}
-                                loading={active.loading}
-                            />
-                        </>
-                    )}
-                </div>
-            )}
-
-            {/* SEO footer — fixed to bottom */}
+                {/* SEO footer — fixed to bottom */}
+            </main>
             {!searched && (
                 <footer className="fixed bottom-0 left-0 right-0 z-10 py-2 bg-[#0d0d0d] border-t border-[#1c1c1d]">
                     <p className="text-[11px] text-[#3a3a3b] leading-relaxed text-center">
