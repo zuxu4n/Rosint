@@ -475,7 +475,6 @@ export default function App() {
     const [dateFrom, setDateFrom]           = useState("");
     const [dateTo, setDateTo]               = useState("");
     const [sortOrder, setSortOrder]         = useState("desc");
-    const [showDeleted, setShowDeleted]     = useState(false);
 
     const posts    = usePaginatedFetch("posts");
     const comments = usePaginatedFetch("comments");
@@ -727,53 +726,45 @@ export default function App() {
                                         onClick={() => setActiveTab(tab)} />
                             ))}
                         </div>
-                        <div className="flex items-center gap-2 pb-2">
-                            {/* Sort select */}
+                        {!initialLoading && !active.loading && active.items.length > 0 && (active.page > 1 || active.items.length >= LIMIT) && (
+                            <div className="flex items-center gap-2 pb-2">
+                                <button onClick={() => active.goPrev(query)} disabled={active.page <= 1 || active.loading}
+                                        className="flex items-center justify-center w-7 h-7 rounded-sm border border-[#343536] hover:border-[#818384] text-[#d7dadc] transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+                                    <IconChevronLeft />
+                                </button>
+                                <span className="text-[11px] text-[#818384]">
+                                    {active.loading ? <IconSpinner /> : `Page ${active.page}`}
+                                </span>
+                                <button onClick={() => active.goNext(query)} disabled={active.items.length < LIMIT || active.loading}
+                                        className="flex items-center justify-center w-7 h-7 rounded-sm border border-[#343536] hover:border-[#818384] text-[#d7dadc] transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+                                    <IconChevronRight />
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Archive notice + sort */}
+                    {!initialLoading && (
+                        <div className="flex items-start justify-between gap-3 mb-3">
+                            <div className="text-[11px] text-[#818384] leading-relaxed">
+                                Archive coverage may vary.{" "}
+                                <a href={`https://www.reddit.com/search/?q=author%3A%22${query}%22&type=${activeTab}`}
+                                   target="_blank" rel="noopener noreferrer" className="text-[#ff4500] hover:underline">
+                                    Click here
+                                </a>{" "}
+                                to search Reddit directly for the most recent activity.
+                                <br />
+                                <span className="text-[#5a5a5b]">Note: Doing so will not show deleted posts or comments.</span>
+                            </div>
                             <select
                                 value={sortOrder}
                                 onChange={(e) => setSortOrder(e.target.value)}
-                                className="text-[11px] text-[#818384] bg-[#1a1a1b] border border-[#343536] hover:border-[#818384] rounded px-2 py-1 transition-colors focus:outline-none focus:border-[#fe5301] cursor-pointer"
+                                className="flex-shrink-0 text-[11px] text-[#818384] bg-[#1a1a1b] border border-[#343536] hover:border-[#818384] rounded px-2 py-1 transition-colors focus:outline-none focus:border-[#fe5301] cursor-pointer"
                             >
                                 <option value="desc">Newest</option>
                                 <option value="asc">Oldest</option>
                                 <option value="top">Top</option>
                             </select>
-                            {/* Deleted filter toggle */}
-                            <button
-                                onClick={() => setShowDeleted(d => !d)}
-                                className={`text-[11px] px-2 py-1 rounded border transition-colors ${showDeleted ? "border-[#fe5301] text-[#fe5301]" : "border-[#343536] text-[#818384] hover:border-[#818384]"}`}
-                            >
-                                deleted
-                            </button>
-                            {!initialLoading && !active.loading && active.items.length > 0 && (active.page > 1 || active.items.length >= LIMIT) && (
-                                <>
-                                    <button onClick={() => active.goPrev(query)} disabled={active.page <= 1 || active.loading}
-                                            className="flex items-center justify-center w-7 h-7 rounded-sm border border-[#343536] hover:border-[#818384] text-[#d7dadc] transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
-                                        <IconChevronLeft />
-                                    </button>
-                                    <span className="text-[11px] text-[#818384]">
-                                        {active.loading ? <IconSpinner /> : `Page ${active.page}`}
-                                    </span>
-                                    <button onClick={() => active.goNext(query)} disabled={active.items.length < LIMIT || active.loading}
-                                            className="flex items-center justify-center w-7 h-7 rounded-sm border border-[#343536] hover:border-[#818384] text-[#d7dadc] transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
-                                        <IconChevronRight />
-                                    </button>
-                                </>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Archive notice */}
-                    {!initialLoading && (
-                        <div className="text-[11px] text-[#818384] mb-3 leading-relaxed">
-                            Archive coverage may vary.{" "}
-                            <a href={`https://www.reddit.com/search/?q=author%3A%22${query}%22&type=${activeTab}`}
-                               target="_blank" rel="noopener noreferrer" className="text-[#ff4500] hover:underline">
-                                Click here
-                            </a>{" "}
-                            to search Reddit directly for the most recent activity.
-                            <br />
-                            <span className="text-[#5a5a5b]">Note: Doing so will not show deleted posts or comments.</span>
                         </div>
                     )}
 
@@ -791,7 +782,6 @@ export default function App() {
                         <>
                             <div className="flex flex-col gap-2">
                                 {activeTab === "posts" && [...posts.items]
-                                    .filter(post => !showDeleted || post.selftext === "[deleted]" || post.selftext === "[removed]" || post.author === "[deleted]")
                                     .sort((a, b) =>
                                         sortOrder === "desc" ? b.created_utc - a.created_utc :
                                             sortOrder === "asc"  ? a.created_utc - b.created_utc :
@@ -801,7 +791,6 @@ export default function App() {
                                         <PostCard key={post.id} post={post} />
                                     ))}
                                 {activeTab === "comments" && [...comments.items]
-                                    .filter(comment => !showDeleted || comment.body === "[deleted]" || comment.body === "[removed]" || comment.author === "[deleted]")
                                     .sort((a, b) =>
                                         sortOrder === "desc" ? b.created_utc - a.created_utc :
                                             sortOrder === "asc"  ? a.created_utc - b.created_utc :
