@@ -250,10 +250,11 @@ function PostCard({ post }) {
                                     {/* Show body inline only when there's no thumbnail */}
                                     {hasBody && !thumb && (
                                         <button
+                                            aria-label={bodyOpen ? "Hide post body" : "Show post body"}
                                             onClick={(e) => { e.preventDefault(); setBodyOpen(o => !o); }}
                                             className="flex items-center gap-1 ml-auto text-[#818384] hover:text-[#fe5301] transition-colors"
                                         >
-                                            <svg className={`w-3 h-3 transition-transform duration-200 ${bodyOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <svg aria-hidden="true" className={`w-3 h-3 transition-transform duration-200 ${bodyOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                             </svg>
                                             {bodyOpen ? "hide body" : "show body"}
@@ -263,7 +264,7 @@ function PostCard({ post }) {
                             </div>
                             {thumb && (
                                 <div className="flex-shrink-0 w-[70px] h-[52px] rounded overflow-hidden bg-[#272729]">
-                                    <img src={thumb} alt="" className="w-full h-full object-cover" loading="lazy"
+                                    <img src={thumb} alt="" width="70" height="52" className="w-full h-full object-cover" loading="lazy"
                                          onError={(e) => { e.target.style.display = "none"; }} />
                                 </div>
                             )}
@@ -272,10 +273,11 @@ function PostCard({ post }) {
                         {hasBody && thumb && (
                             <div className="flex items-center mt-2 text-[11px] text-[#818384]">
                                 <button
+                                    aria-label={bodyOpen ? "Hide post body" : "Show post body"}
                                     onClick={(e) => { e.preventDefault(); setBodyOpen(o => !o); }}
                                     className="flex items-center gap-1 ml-auto hover:text-[#fe5301] transition-colors"
                                 >
-                                    <svg className={`w-3 h-3 transition-transform duration-200 ${bodyOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <svg aria-hidden="true" className={`w-3 h-3 transition-transform duration-200 ${bodyOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                     </svg>
                                     {bodyOpen ? "hide body" : "show body"}
@@ -330,7 +332,7 @@ function CommentCard({ comment }) {
                     </p>
                     {img && (
                         <div className="mt-2 w-24 h-16 rounded overflow-hidden bg-[#272729]">
-                            <img src={img} alt="" className="w-full h-full object-cover" loading="lazy"
+                            <img src={img} alt="" width="96" height="64" className="w-full h-full object-cover" loading="lazy"
                                  onError={(e) => { e.target.style.display = "none"; }} />
                         </div>
                     )}
@@ -381,14 +383,14 @@ function Pagination({ page, hasPrev, hasNext, onPrev, onNext, loading }) {
     if (!hasPrev && !hasNext) return null;
     return (
         <div className="flex items-center justify-center gap-3 mt-6">
-            <button onClick={onPrev} disabled={!hasPrev || loading}
+            <button onClick={onPrev} disabled={!hasPrev || loading} aria-label="Previous page"
                     className="flex items-center justify-center w-10 h-10 rounded border border-[#343536] hover:border-[#818384] text-[#d7dadc] transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
                 <IconChevronLeft />
             </button>
             <span className="text-[12px] text-[#818384] min-w-[60px] text-center">
         {loading ? <span className="flex justify-center"><IconSpinner /></span> : `Page ${page}`}
       </span>
-            <button onClick={onNext} disabled={!hasNext || loading}
+            <button onClick={onNext} disabled={!hasNext || loading} aria-label="Next page"
                     className="flex items-center justify-center w-10 h-10 rounded border border-[#343536] hover:border-[#818384] text-[#d7dadc] transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
                 <IconChevronRight />
             </button>
@@ -599,6 +601,7 @@ export default function App() {
             <header className="border-b border-[#1c1c1d] bg-[#0d0d0d] sticky top-0 z-20">
                 <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
                     <button
+                        aria-label="Go to homepage"
                         onClick={() => { setSearched(false); setUsername(""); setQuery(""); setDateFrom(""); setDateTo(""); window.history.pushState({}, "", "/"); }}
                         className="logo-btn group flex items-center gap-2 relative"
                     >
@@ -735,14 +738,14 @@ export default function App() {
                             </div>
                             {!initialLoading && !active.loading && active.items.length > 0 && (active.page > 1 || active.items.length >= LIMIT) && (
                                 <div className="flex items-center gap-2 pb-2">
-                                    <button onClick={() => active.goPrev(query)} disabled={active.page <= 1 || active.loading}
+                                    <button onClick={() => active.goPrev(query)} disabled={active.page <= 1 || active.loading} aria-label="Previous page"
                                             className="flex items-center justify-center w-7 h-7 rounded-sm border border-[#343536] hover:border-[#818384] text-[#d7dadc] transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
                                         <IconChevronLeft />
                                     </button>
                                     <span className="text-[11px] text-[#818384]">
                                     {active.loading ? <IconSpinner /> : `Page ${active.page}`}
                                 </span>
-                                    <button onClick={() => active.goNext(query)} disabled={active.items.length < LIMIT || active.loading}
+                                    <button onClick={() => active.goNext(query)} disabled={active.items.length < LIMIT || active.loading} aria-label="Next page"
                                             className="flex items-center justify-center w-7 h-7 rounded-sm border border-[#343536] hover:border-[#818384] text-[#d7dadc] transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
                                         <IconChevronRight />
                                     </button>
