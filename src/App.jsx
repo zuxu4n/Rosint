@@ -637,7 +637,7 @@ export default function App() {
                     {!searched && (
                         <div className="text-center mb-2">
                             <picture>
-                                <source srcSet="/rosintTitle.webp" type="image/webp" />
+                                <source srcSet="/rosintTitle.png" type="image/png" />
                                 <img src="/rosintTitle.png" alt="redditOSINT" width="578" height="284" className="mx-auto mb-4" style={{ width: "578px", maxWidth: "90vw" }} />
                             </picture>
                             <p className="text-sm text-[#cccccc]">View private accounts and deleted posts/comments from any user via distributed open-source archives.</p>
