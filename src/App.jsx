@@ -14,6 +14,10 @@ function buildUrls(username, type, pagination = {}, dateFilters = {}) {
         `author=${encodeURIComponent(username)}`,
     ];
 
+    if (dateFilters.subreddit) {
+        base.push(`subreddit=${encodeURIComponent(dateFilters.subreddit)}`);
+    }
+
     if (pagination.before) {
         base.push(`before=${pagination.before}`);
     } else if (dateFilters.dateTo) {
@@ -237,7 +241,6 @@ function PostCard({ post }) {
                                 <p className="text-sm font-medium text-[#d7dadc] leading-snug mb-1.5 group-hover:text-white transition-colors line-clamp-2">
                                     {post.title}
                                 </p>
-                                {/* Comments + domain — only show show-body inline when no thumb */}
                                 <div className={`flex items-center gap-3 text-[11px] text-[#818384] ${thumb ? "" : ""}`}>
                                     <span className="flex items-center gap-1">
                                         <IconComment />{fmtNum(post.num_comments)} comments
@@ -247,7 +250,6 @@ function PostCard({ post }) {
                                             <IconExternal /><span className="truncate">{post.domain}</span>
                                         </span>
                                     )}
-                                    {/* Show body inline only when there's no thumbnail */}
                                     {hasBody && !thumb && (
                                         <button
                                             aria-label={bodyOpen ? "Hide post body" : "Show post body"}
@@ -269,7 +271,6 @@ function PostCard({ post }) {
                                 </div>
                             )}
                         </div>
-                        {/* Show body button below thumbnail row when thumb exists */}
                         {hasBody && thumb && (
                             <div className="flex items-center mt-2 text-[11px] text-[#818384]">
                                 <button
@@ -288,7 +289,6 @@ function PostCard({ post }) {
                 </div>
             </a>
 
-            {/* Expanded body */}
             {hasBody && bodyOpen && (
                 <div className="border-t border-[#272729] px-4 pt-3 pb-3 ml-[44px]">
                     <p className="text-[12px] text-[#d7dadc] leading-relaxed whitespace-pre-wrap">
@@ -476,17 +476,24 @@ export default function App() {
     const [initialLoading, setInitialLoading] = useState(false);
     const [dateFrom, setDateFrom]           = useState("");
     const [dateTo, setDateTo]               = useState("");
+    const [subreddit, setSubreddit]         = useState("");
+    const [appliedSubreddit, setAppliedSubreddit] = useState("");
     const [sortOrder, setSortOrder]         = useState("desc");
 
     const posts    = usePaginatedFetch("posts");
     const comments = usePaginatedFetch("comments");
 
+    useEffect(() => { document.title = "Rosint"; }, []);
+
     const buildFilters = useCallback(() => {
         const f = {};
-        if (dateFrom) f.dateFrom = Math.floor(new Date(dateFrom).getTime() / 1000);
-        if (dateTo)   f.dateTo   = Math.floor(new Date(dateTo).getTime()   / 1000);
+        if (dateFrom)   f.dateFrom  = Math.floor(new Date(dateFrom).getTime() / 1000);
+        if (dateTo)     f.dateTo    = Math.floor(new Date(dateTo).getTime()   / 1000);
+        if (subreddit.trim()) f.subreddit = subreddit.trim();
         return f;
-    }, [dateFrom, dateTo]);
+    }, [dateFrom, dateTo, subreddit]);
+
+    const hasFilters = dateFrom || dateTo || subreddit.trim();
 
     // On mount, check if a ?u= param is in the URL and auto-search it
     useEffect(() => {
@@ -506,7 +513,6 @@ export default function App() {
         e.preventDefault();
         const user = username.trim();
         if (!user) return;
-        // Write username to URL so the link is shareable
         const url = new URL(window.location.href);
         url.searchParams.set("u", user);
         window.history.pushState({}, "", url);
@@ -515,20 +521,15 @@ export default function App() {
         setInitialLoading(true);
         const filters = buildFilters();
         await Promise.all([posts.reset(user, filters), comments.reset(user, filters)]);
+        setAppliedSubreddit(subreddit.trim());
         setInitialLoading(false);
-    }, [username, buildFilters, posts, comments]);
-
-    const applyFilters = useCallback(async () => {
-        if (!query) return;
-        setInitialLoading(true);
-        const filters = buildFilters();
-        await Promise.all([posts.reset(query, filters), comments.reset(query, filters)]);
-        setInitialLoading(false);
-    }, [query, buildFilters, posts, comments]);
+    }, [username, buildFilters, posts, comments, subreddit]);
 
     const clearFilters = useCallback(async () => {
         setDateFrom("");
         setDateTo("");
+        setSubreddit("");
+        setAppliedSubreddit("");
         if (!query) return;
         setInitialLoading(true);
         await Promise.all([posts.reset(query, {}), comments.reset(query, {})]);
@@ -541,8 +542,6 @@ export default function App() {
     return (
         <div className="min-h-screen bg-[#0d0d0d] text-[#d7dadc]" style={{ fontFamily: "'Sora', sans-serif" }}>
             <style>{`
-                @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&display=swap');
-
                 @keyframes face-in {
                     0%   { transform: translate(-50%, -50%) scale(0.1); opacity: 0; }
                     20%  { opacity: 1; }
@@ -602,7 +601,7 @@ export default function App() {
                 <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
                     <button
                         aria-label="Go to homepage"
-                        onClick={() => { setSearched(false); setUsername(""); setQuery(""); setDateFrom(""); setDateTo(""); window.history.pushState({}, "", "/"); }}
+                        onClick={() => { setSearched(false); setUsername(""); setQuery(""); setDateFrom(""); setDateTo(""); setSubreddit(""); window.history.pushState({}, "", "/"); }}
                         className="logo-btn group flex items-center gap-2 relative"
                     >
                         <picture>
@@ -645,15 +644,28 @@ export default function App() {
                     )}
 
                     <form onSubmit={handleSubmit} className="flex gap-2">
-                        <div className="relative flex-1">
-                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#cccccc] text-base font-medium select-none">u/</span>
+                        {/* Username — 2/3 width */}
+                        <div className="relative" style={{ flex: "2 1 0" }}>
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#cccccc] text-sm font-medium select-none">u/</span>
                             <input aria-label="Reddit username" type="text" value={username} onChange={(e) => setUsername(e.target.value)}
                                    placeholder="username"
-                                   className="w-full bg-[#1a1a1b] border border-[#343536] rounded pl-10 pr-4 py-2.5 text-sm text-white placeholder-[#818384] focus:outline-none focus:border-[#ff4500] transition-colors"
+                                   className="w-full bg-[#1a1a1b] border border-[#343536] rounded pl-8 pr-3 py-2.5 text-sm text-white placeholder-[#818384] focus:outline-none focus:border-[#ff4500] transition-colors"
                                    autoFocus />
                         </div>
+                        {/* Subreddit — 1/3 width */}
+                        <div className="relative" style={{ flex: "1 1 0" }}>
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#818384] text-sm font-medium select-none">r/</span>
+                            <input
+                                aria-label="Filter by subreddit"
+                                type="text"
+                                value={subreddit}
+                                onChange={(e) => setSubreddit(e.target.value.replace(/^r\//, ""))}
+                                placeholder="subreddit"
+                                className="w-full bg-[#1a1a1b] border border-[#343536] rounded pl-8 pr-3 py-2.5 text-sm text-white placeholder-[#818384] focus:outline-none focus:border-[#ff4500] transition-colors"
+                            />
+                        </div>
                         <button type="submit" disabled={!username.trim() || initialLoading}
-                                className="flex items-center gap-2 bg-[#ff4500] hover:bg-[#e03d00] disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium text-sm px-5 py-2.5 rounded transition-colors">
+                                className="flex items-center gap-2 bg-[#ff4500] hover:bg-[#e03d00] disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium text-sm px-5 py-2.5 rounded transition-colors flex-shrink-0">
                             {initialLoading ? <IconSpinner /> : <IconSearch />}
                             {initialLoading && "Searching…"}
                         </button>
@@ -662,13 +674,23 @@ export default function App() {
                     {!searched && (
                         <div className="flex flex-wrap items-center gap-2 mt-3">
                             <span className="text-[11px] text-[#818384]">From</span>
-                            <input aria-label="Date from" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
-                                   className="bg-[#1a1a1b] border border-[#343536] rounded-sm px-2 py-1 text-[12px] text-[#d7dadc] focus:outline-none focus:border-[#ff4500] transition-colors [color-scheme:dark]" />
+                            <input
+                                aria-label="Date from"
+                                type="date"
+                                value={dateFrom}
+                                onChange={(e) => setDateFrom(e.target.value)}
+                                className="bg-[#1a1a1b] border border-[#343536] rounded-sm px-2 py-1 text-[12px] text-[#d7dadc] focus:outline-none focus:border-[#ff4500] transition-colors [color-scheme:dark]"
+                            />
                             <span className="text-[11px] text-[#818384]">To</span>
-                            <input aria-label="Date to" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
-                                   className="bg-[#1a1a1b] border border-[#343536] rounded-sm px-2 py-1 text-[12px] text-[#d7dadc] focus:outline-none focus:border-[#ff4500] transition-colors [color-scheme:dark]" />
-                            {(dateFrom || dateTo) && (
-                                <button type="button" onClick={() => { setDateFrom(""); setDateTo(""); }}
+                            <input
+                                aria-label="Date to"
+                                type="date"
+                                value={dateTo}
+                                onChange={(e) => setDateTo(e.target.value)}
+                                className="bg-[#1a1a1b] border border-[#343536] rounded-sm px-2 py-1 text-[12px] text-[#d7dadc] focus:outline-none focus:border-[#ff4500] transition-colors [color-scheme:dark]"
+                            />
+                            {hasFilters && (
+                                <button type="button" onClick={() => { setDateFrom(""); setDateTo(""); setSubreddit(""); }}
                                         className="px-3 py-1 text-[12px] text-[#818384] hover:text-[#d7dadc] transition-colors">
                                     Clear
                                 </button>
@@ -684,47 +706,46 @@ export default function App() {
                         {/* Summary + date filters */}
                         {!initialLoading && (
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
-                                <p className="text-[12px] text-[#818384]">
-                                    Results for <span className="text-[#ff4500] font-medium">u/{query}</span>
-                                    {allSources.length > 0 && (
-                                        <> · {allSources.map((src, i) => {
-                                            const url = src === "Arctic Shift"
-                                                ? "https://github.com/ArthurHeitmann/arctic_shift"
-                                                : "https://pullpush.io/";
-                                            return (
-                                                <span key={src}>
+                                <div className="text-[12px] text-[#818384] pt-1">
+                                    <p>
+                                        Results for <span className="text-[#ff4500] font-medium">u/{query}</span>
+                                        {allSources.length > 0 && (
+                                            <> · {allSources.map((src, i) => {
+                                                const url = src === "Arctic Shift"
+                                                    ? "https://github.com/ArthurHeitmann/arctic_shift"
+                                                    : "https://pullpush.io/";
+                                                return (
+                                                    <span key={src}>
                                                 {i > 0 && <span className="text-[#818384]"> + </span>}
-                                                    <a href={url} target="_blank" rel="noopener noreferrer"
-                                                       className="text-[#d7dadc] hover:text-white hover:underline transition-colors">
+                                                        <a href={url} target="_blank" rel="noopener noreferrer"
+                                                           className="text-[#d7dadc] hover:text-white hover:underline transition-colors">
                                                     {src}
                                                 </a>
                                             </span>
-                                            );
-                                        })}</>
+                                                );
+                                            })}</>
+                                        )}
+                                    </p>
+                                    {appliedSubreddit && (
+                                        <p className="text-[#818384] mt-0.5">in <span className="text-[#ff4500] font-medium">r/{appliedSubreddit}</span></p>
                                     )}
-                                </p>
-                                <div className="flex flex-wrap items-center gap-2">
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2 ml-auto">
                                     <span className="text-[11px] text-[#818384]">From</span>
                                     <input aria-label="Date from" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
                                            className="bg-[#1a1a1b] border border-[#343536] rounded-sm px-2 py-1 text-[12px] text-[#d7dadc] focus:outline-none focus:border-[#ff4500] transition-colors [color-scheme:dark]" />
                                     <span className="text-[11px] text-[#818384]">To</span>
                                     <input aria-label="Date to" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
                                            className="bg-[#1a1a1b] border border-[#343536] rounded-sm px-2 py-1 text-[12px] text-[#d7dadc] focus:outline-none focus:border-[#ff4500] transition-colors [color-scheme:dark]" />
-                                    <button onClick={applyFilters} disabled={initialLoading}
-                                            className="px-3 py-1 text-[12px] font-medium bg-[#ff4500] hover:bg-[#e03d00] disabled:opacity-50 text-white rounded-sm transition-colors">
-                                        Apply
+                                    <button onClick={clearFilters} disabled={initialLoading}
+                                            className="px-3 py-1 text-[12px] font-medium text-[#818384] hover:text-[#d7dadc] border border-[#343536] hover:border-[#818384] disabled:opacity-50 rounded-sm transition-colors">
+                                        Clear
                                     </button>
-                                    {(dateFrom || dateTo) && (
-                                        <button onClick={clearFilters} disabled={initialLoading}
-                                                className="px-3 py-1 text-[12px] text-[#818384] hover:text-[#d7dadc] transition-colors">
-                                            Clear
-                                        </button>
-                                    )}
                                 </div>
                             </div>
                         )}
 
-                        {/* Tabs + inline pagination */}
+                        {/* Tabs + inline pagination + clear */}
                         <div className="flex items-center border-b border-[#1c1c1d] mb-4">
                             <div className="flex flex-1">
                                 {TABS.map((tab) => (
@@ -736,21 +757,24 @@ export default function App() {
                                             onClick={() => setActiveTab(tab)} />
                                 ))}
                             </div>
-                            {!initialLoading && !active.loading && active.items.length > 0 && (active.page > 1 || active.items.length >= LIMIT) && (
-                                <div className="flex items-center gap-2 pb-2">
-                                    <button onClick={() => active.goPrev(query)} disabled={active.page <= 1 || active.loading} aria-label="Previous page"
-                                            className="flex items-center justify-center w-7 h-7 rounded-sm border border-[#343536] hover:border-[#818384] text-[#d7dadc] transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
-                                        <IconChevronLeft />
-                                    </button>
-                                    <span className="text-[11px] text-[#818384]">
-                                    {active.loading ? <IconSpinner /> : `Page ${active.page}`}
-                                </span>
-                                    <button onClick={() => active.goNext(query)} disabled={active.items.length < LIMIT || active.loading} aria-label="Next page"
-                                            className="flex items-center justify-center w-7 h-7 rounded-sm border border-[#343536] hover:border-[#818384] text-[#d7dadc] transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
-                                        <IconChevronRight />
-                                    </button>
-                                </div>
-                            )}
+                            <div className="flex items-center gap-2 pb-2">
+                                {!initialLoading && !active.loading && active.items.length > 0 && (active.page > 1 || active.items.length >= LIMIT) && (
+                                    <>
+                                        <button onClick={() => active.goPrev(query)} disabled={active.page <= 1 || active.loading} aria-label="Previous page"
+                                                className="flex items-center justify-center w-7 h-7 rounded-sm border border-[#343536] hover:border-[#818384] text-[#d7dadc] transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+                                            <IconChevronLeft />
+                                        </button>
+                                        <span className="text-[11px] text-[#818384]">
+                                            {active.loading ? <IconSpinner /> : `Page ${active.page}`}
+                                        </span>
+                                        <button onClick={() => active.goNext(query)} disabled={active.items.length < LIMIT || active.loading} aria-label="Next page"
+                                                className="flex items-center justify-center w-7 h-7 rounded-sm border border-[#343536] hover:border-[#818384] text-[#d7dadc] transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+                                            <IconChevronRight />
+                                        </button>
+                                    </>
+                                )}
+
+                            </div>
                         </div>
 
                         {/* Archive notice + sort */}
@@ -823,8 +847,6 @@ export default function App() {
                         )}
                     </div>
                 )}
-
-                {/* SEO footer — fixed to bottom */}
             </main>
             {!searched && (
                 <footer className="fixed bottom-0 left-0 right-0 z-10 py-2 bg-[#0d0d0d] border-t border-[#1c1c1d]">
