@@ -4,9 +4,13 @@
 
 [rosint.dev](https://rosint.dev)
 
+
+https://github.com/user-attachments/assets/6967e195-7de8-42cf-8429-34ae6281db51
+
+
 ## Features
 
-- **Dual-source search** ? Arctic Shift and PullPush queried in parallel, results merged and deduplicated by post/comment ID
+- **Dual-source search** > Arctic Shift and PullPush queried in parallel, results merged and deduplicated by post/comment ID
 - **Posts tab** > title, subreddit, score, comment count, timestamp, thumbnail, body snippet
 - **Comments tab** > full comment body, subreddit, score, link to original thread
 - **Date range filter** > filter results by before/after date using a calendar picker
@@ -46,7 +50,7 @@ PullPush:      https://api.pullpush.io/reddit/search/submission/?test&author={us
 
 ## Limitations
 
-- Archive data updates **monthly** — recent posts may not appear
+- Archive data may not capture all recent posts
 - Arctic Shift and PullPush have no guaranteed uptime
 - If both APIs are down, no results will be returned
 
