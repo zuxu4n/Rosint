@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 
 // ─── API Config ───────────────────────────────────────────────────────────────
 
@@ -102,6 +102,97 @@ async function safeFetch(url) {
     }
 }
 
+async function fetchTimeSeries(key, { precision = "hour", hours = 24 } = {}) {
+    const before = Date.now();
+    const after = before - hours * 60 * 60 * 1000;
+
+    const url =
+        `${ARCTIC}/api/time_series` +
+        `?key=${encodeURIComponent(key)}` +
+        `&precision=${encodeURIComponent(precision)}` +
+        `&after=${after}` +
+        `&before=${before}`;
+
+    try {
+        const res = await fetch(url, { headers: { Accept: "application/json" } });
+        if (!res.ok) return [];
+        const json = await res.json();
+        return (json?.data ?? []).map((p) => ({
+            date: new Date(p.date * 1000),
+            value: p.value,
+        }));
+    } catch {
+        return [];
+    }
+}
+
+function formatChartTick(date, precision, spanHours = 24) {
+    if (spanHours >= 24 * 3) {
+        return date.toLocaleDateString([], { weekday: "short" });
+    }
+    if (precision === "minute" || precision === "hour") {
+        return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    }
+    return date.toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
+function buildLinePath(points, width, height, padding) {
+    if (!points.length) return "";
+
+    const innerWidth = width - padding.left - padding.right;
+    const innerHeight = height - padding.top - padding.bottom;
+
+    const minX = points[0].date.getTime();
+    const maxX = points[points.length - 1].date.getTime();
+    const maxY = Math.max(...points.map((p) => p.value), 1);
+
+    return points.map((p, i) => {
+        const x =
+            padding.left +
+            ((p.date.getTime() - minX) / Math.max(maxX - minX, 1)) * innerWidth;
+        const y =
+            height -
+            padding.bottom -
+            (p.value / maxY) * innerHeight;
+        return `${i === 0 ? "M" : "L"} ${x} ${y}`;
+    }).join(" ");
+}
+
+function mergeSeries(leftSeries, rightSeries, leftKey = "left", rightKey = "right") {
+    const byTs = new Map();
+
+    for (const point of leftSeries) {
+        const ts = point.date.getTime();
+        byTs.set(ts, { date: point.date, [leftKey]: point.value, [rightKey]: 0 });
+    }
+
+    for (const point of rightSeries) {
+        const ts = point.date.getTime();
+        const existing = byTs.get(ts);
+        if (existing) {
+            existing[rightKey] = point.value;
+        } else {
+            byTs.set(ts, { date: point.date, [leftKey]: 0, [rightKey]: point.value });
+        }
+    }
+
+    return Array.from(byTs.values()).sort((a, b) => a.date - b.date);
+}
+
+function ratioSeries(numeratorSeries, denominatorSeries) {
+    const denominatorMap = new Map(
+        denominatorSeries.map((point) => [point.date.getTime(), point.value])
+    );
+
+    return numeratorSeries
+        .map((point) => {
+            const denominator = denominatorMap.get(point.date.getTime());
+            if (!denominator) return null;
+            return { date: point.date, value: point.value / denominator };
+        })
+        .filter(Boolean);
+}
+
 async function fetchBoth(username, type, pagination = {}, dateFilters = {}) {
     const { arctic, pullpush } = buildUrls(username, type, pagination, dateFilters);
     const [arcticRes, pullpushRes] = await Promise.all([
@@ -179,28 +270,22 @@ const IconChevronRight = () => (
 
 const AnimeFace = () => (
     <svg className="anime-face-svg" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
-        {/* Face circle */}
         <circle cx="22" cy="22" r="19" fill="white" opacity="0.97"/>
-        {/* Left eye */}
         <g className="face-eye-l">
             <ellipse cx="15" cy="20" rx="4" ry="4.5" fill="#1a1a2e"/>
             <ellipse cx="15" cy="20" rx="3" ry="3.5" fill="#3a3a6e"/>
             <circle cx="16.5" cy="18.2" r="1.2" fill="white"/>
-            <circle cx="14"   cy="21.5" r="0.5" fill="white" opacity="0.6"/>
+            <circle cx="14" cy="21.5" r="0.5" fill="white" opacity="0.6"/>
         </g>
-        {/* Right eye */}
         <g className="face-eye-r">
             <ellipse cx="29" cy="20" rx="4" ry="4.5" fill="#1a1a2e"/>
             <ellipse cx="29" cy="20" rx="3" ry="3.5" fill="#3a3a6e"/>
             <circle cx="30.5" cy="18.2" r="1.2" fill="white"/>
-            <circle cx="28"   cy="21.5" r="0.5" fill="white" opacity="0.6"/>
+            <circle cx="28" cy="21.5" r="0.5" fill="white" opacity="0.6"/>
         </g>
-        {/* Blush marks */}
         <ellipse className="face-blush" cx="10" cy="26" rx="4.5" ry="2.2" fill="#fe5301" opacity="0.45"/>
         <ellipse className="face-blush" cx="34" cy="26" rx="4.5" ry="2.2" fill="#fe5301" opacity="0.45"/>
-        {/* Happy mouth */}
         <path d="M17 28 Q22 33 27 28" stroke="#1a1a2e" strokeWidth="1.8" strokeLinecap="round" fill="none"/>
-        {/* Highlight */}
         <ellipse cx="28" cy="12" rx="3" ry="1.5" fill="white" opacity="0.35" transform="rotate(-30 28 12)"/>
     </svg>
 );
@@ -222,7 +307,6 @@ function PostCard({ post }) {
                         <span className="text-[11px] font-bold text-[#d7dadc] leading-none">{fmtNum(post.score)}</span>
                     </div>
                     <div className="flex-1 p-3 min-w-0">
-                        {/* Top row: text + thumbnail side by side */}
                         <div className="flex gap-3">
                             <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-1.5 text-[11px] text-[#818384] mb-1.5 flex-wrap">
@@ -241,7 +325,7 @@ function PostCard({ post }) {
                                 <p className="text-sm font-medium text-[#d7dadc] leading-snug mb-1.5 group-hover:text-white transition-colors line-clamp-2">
                                     {post.title}
                                 </p>
-                                <div className={`flex items-center gap-3 text-[11px] text-[#818384] ${thumb ? "" : ""}`}>
+                                <div className="flex items-center gap-3 text-[11px] text-[#818384]">
                                     <span className="flex items-center gap-1">
                                         <IconComment />{fmtNum(post.num_comments)} comments
                                     </span>
@@ -369,8 +453,8 @@ function TabBtn({ label, count, countIsPlus, active, onClick }) {
             {label}
             {count > 0 && (
                 <span className={`ml-1.5 text-[11px] px-1.5 py-0.5 rounded-full ${active ? "bg-[#ff4500] text-white" : "bg-[#272729] text-[#818384]"}`}>
-          {countIsPlus ? `${count}+` : count}
-        </span>
+                    {countIsPlus ? `${count}+` : count}
+                </span>
             )}
             {active && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#ff4500] rounded-t" />}
         </button>
@@ -380,7 +464,6 @@ function TabBtn({ label, count, countIsPlus, active, onClick }) {
 // ─── Pagination ───────────────────────────────────────────────────────────────
 
 function Pagination({ page, hasPrev, hasNext, onPrev, onNext, loading }) {
-    if (!hasPrev && !hasNext) return null;
     return (
         <div className="flex items-center justify-center gap-3 mt-6">
             <button onClick={onPrev} disabled={!hasPrev || loading} aria-label="Previous page"
@@ -388,8 +471,8 @@ function Pagination({ page, hasPrev, hasNext, onPrev, onNext, loading }) {
                 <IconChevronLeft />
             </button>
             <span className="text-[12px] text-[#818384] min-w-[60px] text-center">
-        {loading ? <span className="flex justify-center"><IconSpinner /></span> : `Page ${page}`}
-      </span>
+                {loading ? <span className="flex justify-center"><IconSpinner /></span> : `Page ${page}`}
+            </span>
             <button onClick={onNext} disabled={!hasNext || loading} aria-label="Next page"
                     className="flex items-center justify-center w-10 h-10 rounded border border-[#343536] hover:border-[#818384] text-[#d7dadc] transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
                 <IconChevronRight />
@@ -398,14 +481,404 @@ function Pagination({ page, hasPrev, hasNext, onPrev, onNext, loading }) {
     );
 }
 
+// ─── Global Chart ─────────────────────────────────────────────────────────────
+
+function TotalActivityChart() {
+    const [postsSeries, setPostsSeries] = useState([]);
+    const [commentsSeries, setCommentsSeries] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    const precision = "hour";
+    const hours = 24 * 7;
+
+    useEffect(() => {
+        let cancelled = false;
+
+        async function load() {
+            setLoading(true);
+            const [posts, comments] = await Promise.all([
+                fetchTimeSeries("global/posts/count", { precision, hours }),
+                fetchTimeSeries("global/comments/count", { precision, hours }),
+            ]);
+
+            if (!cancelled) {
+                setPostsSeries(posts);
+                setCommentsSeries(comments);
+                setLoading(false);
+            }
+        }
+
+        load();
+        const id = setInterval(load, 60 * 1000);
+
+        return () => {
+            cancelled = true;
+            clearInterval(id);
+        };
+    }, []);
+
+    const width = 900;
+    const height = 391;
+    const padding = { top: 12, right: 42, bottom: 42, left: 72 };
+
+    const merged = useMemo(() => {
+        const byTs = new Map();
+
+        for (const p of postsSeries) {
+            const ts = p.date.getTime();
+            byTs.set(ts, { date: p.date, posts: p.value, comments: 0 });
+        }
+
+        for (const c of commentsSeries) {
+            const ts = c.date.getTime();
+            const existing = byTs.get(ts);
+            if (existing) {
+                existing.comments = c.value;
+            } else {
+                byTs.set(ts, { date: c.date, posts: 0, comments: c.value });
+            }
+        }
+
+        return Array.from(byTs.values()).sort((a, b) => a.date - b.date);
+    }, [postsSeries, commentsSeries]);
+
+    const maxY = Math.max(
+        1,
+        ...merged.map((p) => Math.max(p.posts ?? 0, p.comments ?? 0))
+    );
+
+    const yTicks = 3;
+    const xTicks = merged.filter((_, i) => {
+        if (merged.length <= 4) return true;
+        const step = Math.max(1, Math.floor(merged.length / 4));
+        return i % step === 0 || i === merged.length - 1;
+    });
+
+    const postsPath = buildLinePath(
+        merged.map((p) => ({ date: p.date, value: p.posts })),
+        width,
+        height,
+        padding
+    );
+
+    const commentsPath = buildLinePath(
+        merged.map((p) => ({ date: p.date, value: p.comments })),
+        width,
+        height,
+        padding
+    );
+
+    return (
+        <div className="bg-[#1a1a1b] border border-[#343536] rounded-lg overflow-hidden">
+            <div className="px-4 py-2 border-b border-[#272729]">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div>
+                        <h2 className="text-sm font-semibold text-white">Total Reddit posts and comments</h2>
+                        <p className="text-[11px] text-[#818384] mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis">
+                            Global Reddit activity over the past week.
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-4 text-[12px]">
+                        <div className="flex items-center gap-2 text-[#d7dadc]">
+                            <span className="w-3 h-3 rounded-full bg-[#fe5301] inline-block"></span>
+                            Posts
+                        </div>
+                        <div className="flex items-center gap-2 text-[#d7dadc]">
+                            <span className="w-3 h-3 rounded-full bg-[#4fbdba] inline-block"></span>
+                            Comments
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="p-3">
+                {loading ? (
+                    <div className="flex items-center justify-center py-16 gap-3 text-[#818384]">
+                        <IconSpinner />
+                        <span className="text-sm">Loading chart…</span>
+                    </div>
+                ) : merged.length === 0 ? (
+                    <div className="text-center py-16 text-[#818384] text-sm">
+                        No chart data available right now.
+                    </div>
+                ) : (
+                    <div className="w-full overflow-hidden">
+                        <svg
+                            viewBox={`0 0 ${width} ${height}`}
+                            className="w-full h-auto"
+                            role="img"
+                            aria-label="Line chart of total Reddit posts and comments"
+                        >
+                            {Array.from({ length: yTicks + 1 }).map((_, i) => {
+                                const value = (maxY / yTicks) * i;
+                                const y =
+                                    height -
+                                    padding.bottom -
+                                    (value / maxY) * (height - padding.top - padding.bottom);
+
+                                return (
+                                    <g key={i}>
+                                        <line
+                                            x1={padding.left}
+                                            x2={width - padding.right}
+                                            y1={y}
+                                            y2={y}
+                                            stroke="#2a2a2b"
+                                            strokeWidth="1"
+                                        />
+                                        <text
+                                            x={padding.left - 12}
+                                            y={y + 4}
+                                            textAnchor="end"
+                                            fontSize="23"
+                                            fill="#818384"
+                                        >
+                                            {fmtNum(Math.round(value))}
+                                        </text>
+                                    </g>
+                                );
+                            })}
+
+                            {xTicks.map((p, i) => {
+                                const minX = merged[0].date.getTime();
+                                const maxX = merged[merged.length - 1].date.getTime();
+                                const x =
+                                    padding.left +
+                                    ((p.date.getTime() - minX) / Math.max(maxX - minX, 1)) *
+                                    (width - padding.left - padding.right);
+
+                                return (
+                                    <g key={i}>
+                                        <line
+                                            x1={x}
+                                            x2={x}
+                                            y1={padding.top}
+                                            y2={height - padding.bottom}
+                                            stroke="#202021"
+                                            strokeWidth="1"
+                                        />
+                                        <text
+                                            x={x}
+                                            y={height - 12}
+                                            textAnchor="middle"
+                                            fontSize="23"
+                                            fill="#818384"
+                                        >
+                                            {formatChartTick(p.date, precision, hours)}
+                                        </text>
+                                    </g>
+                                );
+                            })}
+
+                            <path
+                                d={postsPath}
+                                fill="none"
+                                stroke="#fe5301"
+                                strokeWidth="3"
+                                strokeLinecap="square"
+                                strokeLinejoin="bevel"
+                            />
+                            <path
+                                d={commentsPath}
+                                fill="none"
+                                stroke="#4fbdba"
+                                strokeWidth="3"
+                                strokeLinecap="square"
+                                strokeLinejoin="bevel"
+                            />
+                        </svg>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
 // ─── usePaginatedFetch ────────────────────────────────────────────────────────
 
+function SecondaryGlobalChart({
+                                  title,
+                                  subtitle,
+                                  ariaLabel,
+                                  leftLabel,
+                                  rightLabel,
+                                  leftKey,
+                                  rightKey,
+                                  numberFormatter,
+                              }) {
+    const [leftSeries, setLeftSeries] = useState([]);
+    const [rightSeries, setRightSeries] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const precision = "hour";
+    const hours = 24 * 7;
+    const width = 900;
+    const height = 391;
+    const padding = { top: 12, right: 42, bottom: 42, left: 72 };
+
+    useEffect(() => {
+        let cancelled = false;
+
+        async function load() {
+            setLoading(true);
+            const [leftBase, rightBase, leftCount, rightCount] = await Promise.all([
+                fetchTimeSeries(leftKey, { precision, hours }),
+                fetchTimeSeries(rightKey, { precision, hours }),
+                fetchTimeSeries("global/posts/count", { precision, hours }),
+                fetchTimeSeries("global/comments/count", { precision, hours }),
+            ]);
+
+            if (cancelled) return;
+
+            setLeftSeries(ratioSeries(leftBase, leftCount));
+            setRightSeries(ratioSeries(rightBase, rightCount));
+            setLoading(false);
+        }
+
+        load();
+        const id = setInterval(load, 60 * 1000);
+
+        return () => {
+            cancelled = true;
+            clearInterval(id);
+        };
+    }, [hours, leftKey, precision, rightKey]);
+
+    const merged = useMemo(
+        () => mergeSeries(leftSeries, rightSeries, "left", "right"),
+        [leftSeries, rightSeries]
+    );
+
+    const maxY = Math.max(1, ...merged.map((p) => Math.max(p.left ?? 0, p.right ?? 0)));
+    const yTicks = 3;
+    const xTicks = merged.filter((_, i) => {
+        if (merged.length <= 4) return true;
+        const step = Math.max(1, Math.floor(merged.length / 4));
+        return i % step === 0 || i === merged.length - 1;
+    });
+
+    const leftPath = buildLinePath(
+        merged.map((p) => ({ date: p.date, value: p.left })),
+        width,
+        height,
+        padding
+    );
+    const rightPath = buildLinePath(
+        merged.map((p) => ({ date: p.date, value: p.right })),
+        width,
+        height,
+        padding
+    );
+
+    return (
+        <div className="bg-[#1a1a1b] border border-[#343536] rounded-lg overflow-hidden">
+            <div className="px-4 py-2 border-b border-[#272729]">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div>
+                        <h2 className="text-sm font-semibold text-white">{title}</h2>
+                        <p className="text-[11px] text-[#818384] mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis">{subtitle}</p>
+                    </div>
+                    <div className="flex items-center gap-4 text-[12px]">
+                        <div className="flex items-center gap-2 text-[#d7dadc]">
+                            <span className="w-3 h-3 rounded-full bg-[#fe5301] inline-block"></span>
+                            {leftLabel}
+                        </div>
+                        <div className="flex items-center gap-2 text-[#d7dadc]">
+                            <span className="w-3 h-3 rounded-full bg-[#4fbdba] inline-block"></span>
+                            {rightLabel}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="p-3">
+                {loading ? (
+                    <div className="flex items-center justify-center py-16 gap-3 text-[#818384]">
+                        <IconSpinner />
+                        <span className="text-sm">Loading chart...</span>
+                    </div>
+                ) : merged.length === 0 ? (
+                    <div className="text-center py-16 text-[#818384] text-sm">
+                        No chart data available right now.
+                    </div>
+                ) : (
+                    <div className="w-full overflow-hidden">
+                        <svg
+                            viewBox={`0 0 ${width} ${height}`}
+                            className="w-full h-auto"
+                            role="img"
+                            aria-label={ariaLabel}
+                        >
+                            {Array.from({ length: yTicks + 1 }).map((_, i) => {
+                                const value = (maxY / yTicks) * i;
+                                const y =
+                                    height -
+                                    padding.bottom -
+                                    (value / maxY) * (height - padding.top - padding.bottom);
+
+                                return (
+                                    <g key={i}>
+                                        <line x1={padding.left} x2={width - padding.right} y1={y} y2={y} stroke="#2a2a2b" strokeWidth="1" />
+                                        <text x={padding.left - 12} y={y + 4} textAnchor="end" fontSize="23" fill="#818384">
+                                            {numberFormatter(value)}
+                                        </text>
+                                    </g>
+                                );
+                            })}
+
+                            {xTicks.map((p, i) => {
+                                const minX = merged[0].date.getTime();
+                                const maxX = merged[merged.length - 1].date.getTime();
+                                const x =
+                                    padding.left +
+                                    ((p.date.getTime() - minX) / Math.max(maxX - minX, 1)) *
+                                    (width - padding.left - padding.right);
+
+                                return (
+                                    <g key={i}>
+                                        <line x1={x} x2={x} y1={padding.top} y2={height - padding.bottom} stroke="#202021" strokeWidth="1" />
+                                        <text x={x} y={height - 12} textAnchor="middle" fontSize="23" fill="#818384">
+                                            {formatChartTick(p.date, precision, hours)}
+                                        </text>
+                                    </g>
+                                );
+                            })}
+
+                            <path d={leftPath} fill="none" stroke="#fe5301" strokeWidth="3" strokeLinecap="square" strokeLinejoin="bevel" />
+                            <path d={rightPath} fill="none" stroke="#4fbdba" strokeWidth="3" strokeLinecap="square" strokeLinejoin="bevel" />
+                        </svg>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
+function GlobalChartsPanel() {
+    return (
+        <section className="max-w-3xl mx-auto px-4 mt-8 mb-32">
+            <div className="grid gap-4 md:grid-cols-2">
+                <TotalActivityChart />
+                <SecondaryGlobalChart
+                    title="Average upvotes"
+                    subtitle="Average post/comment score over the past week."
+                    ariaLabel="Line chart of average post and comment upvotes"
+                    leftLabel="Posts"
+                    rightLabel="Comments"
+                    leftKey="global/posts/sum_score"
+                    rightKey="global/comments/sum_score"
+                    numberFormatter={(value) => fmtNum(Math.round(value))}
+                />
+            </div>
+        </section>
+    );
+}
+
 function usePaginatedFetch(type) {
-    const [items, setItems]         = useState([]);
-    const [sources, setSources]     = useState([]);
-    const [loading, setLoading]     = useState(false);
-    const [error, setError]         = useState(null);
-    const [page, setPage]           = useState(1);
+    const [items, setItems] = useState([]);
+    const [sources, setSources] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
+    const [page, setPage] = useState(1);
     const [pageStack, setPageStack] = useState([]);
     const [storedFilters, setStoredFilters] = useState({});
 
@@ -469,33 +942,33 @@ function usePaginatedFetch(type) {
 const TABS = ["posts", "comments"];
 
 export default function App() {
-    const [username, setUsername]           = useState("");
-    const [query, setQuery]                 = useState("");
-    const [activeTab, setActiveTab]         = useState("posts");
-    const [searched, setSearched]           = useState(false);
+    const [username, setUsername] = useState("");
+    const [query, setQuery] = useState("");
+    const [activeTab, setActiveTab] = useState("posts");
+    const [searched, setSearched] = useState(false);
     const [initialLoading, setInitialLoading] = useState(false);
-    const [dateFrom, setDateFrom]           = useState("");
-    const [dateTo, setDateTo]               = useState("");
-    const [subreddit, setSubreddit]         = useState("");
+    const [dateFrom, setDateFrom] = useState("");
+    const [dateTo, setDateTo] = useState("");
+    const [subreddit, setSubreddit] = useState("");
     const [appliedSubreddit, setAppliedSubreddit] = useState("");
-    const [sortOrder, setSortOrder]         = useState("desc");
+    const [sortOrder, setSortOrder] = useState("desc");
+    const [showGraphs, setShowGraphs] = useState(false);
 
-    const posts    = usePaginatedFetch("posts");
+    const posts = usePaginatedFetch("posts");
     const comments = usePaginatedFetch("comments");
 
     useEffect(() => { document.title = "Rosint"; }, []);
 
     const buildFilters = useCallback(() => {
         const f = {};
-        if (dateFrom)   f.dateFrom  = Math.floor(new Date(dateFrom).getTime() / 1000);
-        if (dateTo)     f.dateTo    = Math.floor(new Date(dateTo).getTime()   / 1000);
+        if (dateFrom) f.dateFrom = Math.floor(new Date(dateFrom).getTime() / 1000);
+        if (dateTo) f.dateTo = Math.floor(new Date(dateTo).getTime() / 1000);
         if (subreddit.trim()) f.subreddit = subreddit.trim();
         return f;
     }, [dateFrom, dateTo, subreddit]);
 
     const hasFilters = dateFrom || dateTo || subreddit.trim();
 
-    // On mount, check if a ?u= param is in the URL and auto-search it
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         const u = params.get("u")?.trim();
@@ -507,7 +980,7 @@ export default function App() {
         Promise.all([posts.reset(u, {}), comments.reset(u, {})]).then(() => {
             setInitialLoading(false);
         });
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    }, []);
 
     const handleSubmit = useCallback(async (e) => {
         e.preventDefault();
@@ -596,7 +1069,6 @@ export default function App() {
                 }
             `}</style>
 
-            {/* Header */}
             <header className="border-b border-[#1c1c1d] bg-[#0d0d0d] sticky top-0 z-20">
                 <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
                     <button
@@ -630,7 +1102,6 @@ export default function App() {
                 </div>
             </header>
 
-            {/* Hero / Search */}
             <main>
                 <div className={`max-w-3xl mx-auto px-4 transition-all duration-300 ${searched ? "pt-6" : "pt-20"}`}>
                     {!searched && (
@@ -644,7 +1115,6 @@ export default function App() {
                     )}
 
                     <form onSubmit={handleSubmit} className="flex gap-2">
-                        {/* Username — 2/3 width */}
                         <div className="relative" style={{ flex: "2 1 0" }}>
                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#cccccc] text-sm font-medium select-none">u/</span>
                             <input aria-label="Reddit username" type="text" value={username} onChange={(e) => setUsername(e.target.value)}
@@ -652,7 +1122,6 @@ export default function App() {
                                    className="w-full bg-[#1a1a1b] border border-[#343536] rounded pl-8 pr-3 py-2.5 text-sm text-white placeholder-[#818384] focus:outline-none focus:border-[#ff4500] transition-colors"
                                    autoFocus />
                         </div>
-                        {/* Subreddit — 1/3 width */}
                         <div className="relative" style={{ flex: "1 1 0" }}>
                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#818384] text-sm font-medium select-none">r/</span>
                             <input
@@ -695,15 +1164,24 @@ export default function App() {
                                     Clear
                                 </button>
                             )}
+                            <button
+                                type="button"
+                                onClick={() => setShowGraphs(g => !g)}
+                                className="flex items-center gap-1.5 ml-auto text-[12px] text-[#818384] hover:text-[#d7dadc] transition-colors"
+                            >
+                                {showGraphs ? "Hide graphs" : "Show graphs"}
+                                <svg aria-hidden="true" className={`w-3 h-3 transition-transform duration-200 ${showGraphs ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
                         </div>
                     )}
                 </div>
 
-                {/* Results */}
+                {!searched && showGraphs && <GlobalChartsPanel />}
+
                 {searched && (
                     <div className="max-w-3xl mx-auto px-4 mt-6 pb-16">
-
-                        {/* Summary + date filters */}
                         {!initialLoading && (
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
                                 <div className="text-[12px] text-[#818384] pt-1">
@@ -716,12 +1194,12 @@ export default function App() {
                                                     : "https://pullpush.io/";
                                                 return (
                                                     <span key={src}>
-                                                {i > 0 && <span className="text-[#818384]"> + </span>}
+                                                        {i > 0 && <span className="text-[#818384]"> + </span>}
                                                         <a href={url} target="_blank" rel="noopener noreferrer"
                                                            className="text-[#d7dadc] hover:text-white hover:underline transition-colors">
-                                                    {src}
-                                                </a>
-                                            </span>
+                                                            {src}
+                                                        </a>
+                                                    </span>
                                                 );
                                             })}</>
                                         )}
@@ -745,7 +1223,6 @@ export default function App() {
                             </div>
                         )}
 
-                        {/* Tabs + inline pagination + clear */}
                         <div className="flex items-center border-b border-[#1c1c1d] mb-4">
                             <div className="flex flex-1">
                                 {TABS.map((tab) => (
@@ -758,7 +1235,7 @@ export default function App() {
                                 ))}
                             </div>
                             <div className="flex items-center gap-2 pb-2">
-                                {!initialLoading && !active.loading && active.items.length > 0 && (active.page > 1 || active.items.length >= LIMIT) && (
+                                {!initialLoading && !active.loading && active.items.length > 0 && (
                                     <>
                                         <button onClick={() => active.goPrev(query)} disabled={active.page <= 1 || active.loading} aria-label="Previous page"
                                                 className="flex items-center justify-center w-7 h-7 rounded-sm border border-[#343536] hover:border-[#818384] text-[#d7dadc] transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
@@ -773,11 +1250,9 @@ export default function App() {
                                         </button>
                                     </>
                                 )}
-
                             </div>
                         </div>
 
-                        {/* Archive notice + sort */}
                         {!initialLoading && (
                             <div className="flex items-start justify-between gap-3 mb-3">
                                 <div className="text-[11px] text-[#818384] leading-relaxed">
@@ -803,7 +1278,6 @@ export default function App() {
                             </div>
                         )}
 
-                        {/* Tab content */}
                         {initialLoading || active.loading ? (
                             <div className="flex items-center justify-center py-20 gap-3 text-[#818384]">
                                 <IconSpinner />
@@ -819,7 +1293,7 @@ export default function App() {
                                     {activeTab === "posts" && [...posts.items]
                                         .sort((a, b) =>
                                             sortOrder === "desc" ? b.created_utc - a.created_utc :
-                                                sortOrder === "asc"  ? a.created_utc - b.created_utc :
+                                                sortOrder === "asc" ? a.created_utc - b.created_utc :
                                                     (b.score ?? 0) - (a.score ?? 0)
                                         )
                                         .map((post) => (
@@ -828,7 +1302,7 @@ export default function App() {
                                     {activeTab === "comments" && [...comments.items]
                                         .sort((a, b) =>
                                             sortOrder === "desc" ? b.created_utc - a.created_utc :
-                                                sortOrder === "asc"  ? a.created_utc - b.created_utc :
+                                                sortOrder === "asc" ? a.created_utc - b.created_utc :
                                                     (b.score ?? 0) - (a.score ?? 0)
                                         )
                                         .map((comment) => (
@@ -848,6 +1322,7 @@ export default function App() {
                     </div>
                 )}
             </main>
+
             {!searched && (
                 <footer className="fixed bottom-0 left-0 right-0 z-10 py-2 bg-[#0d0d0d] border-t border-[#1c1c1d]">
                     <p className="text-[11px] text-[#3a3a3b] leading-relaxed text-center">
