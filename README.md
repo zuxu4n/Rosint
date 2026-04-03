@@ -46,7 +46,7 @@ PullPush:      https://api.pullpush.io/reddit/search/submission/?test&author={us
 
 ## Limitations
 
-- Archive data updates **monthly** — recent posts may not appear
+- Archive data may not capture all recent posts
 - Arctic Shift and PullPush have no guaranteed uptime
 - If both APIs are down, no results will be returned
 
