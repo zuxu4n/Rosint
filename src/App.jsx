@@ -292,92 +292,222 @@ const AnimeFace = () => (
 
 // ─── Post Card ────────────────────────────────────────────────────────────────
 
-function PostCard({ post }) {
-    const [bodyOpen, setBodyOpen] = useState(false);
-    const thumb = getPostThumbnail(post);
+function PostCard({ post, embedded = false }) {
+    const [bodyOpen, setBodyOpen]               = useState(false);
+    const [comments, setComments]               = useState(null); // null = not fetched
+    const [commentsLoading, setCommentsLoading] = useState(false);
+    const [moreCommentsCount, setMoreComments]  = useState(null);
+
+    const thumb   = getPostThumbnail(post);
     const postUrl = `${REDDIT_BASE}${post.permalink}`;
     const hasBody = post.selftext && post.selftext !== "[deleted]" && post.selftext !== "[removed]";
 
+    async function handleLoadComments() {
+        if (commentsLoading) return;
+        setCommentsLoading(true);
+        try {
+            const res  = await fetch(`${ARCTIC}/api/comments/tree?link_id=t3_${post.id}&limit=25`);
+            const json = await res.json();
+            const data = json.data || [];
+            const list = [];
+            let more = null;
+            for (const item of data) {
+                if (item.kind === "t1")        list.push(item.data);
+                else if (item.kind === "more") more = item.data?.count ?? null;
+            }
+            setComments(list);
+            setMoreComments(more);
+        } catch (_) {
+            setComments([]);
+        }
+        setCommentsLoading(false);
+    }
+
     return (
-        <div className="bg-[#1a1a1b] border border-[#343536] rounded overflow-hidden hover:border-[#818384] transition-all duration-150 hover:shadow-lg group">
-            <a href={postUrl} target="_blank" rel="noopener noreferrer" className="block">
-                <div className="flex">
-                    <div className="flex flex-col items-center justify-start gap-1 px-2.5 py-3 bg-[#161617] min-w-[44px]">
-                        <IconArrowUp />
-                        <span className="text-[11px] font-bold text-[#d7dadc] leading-none">{fmtNum(post.score)}</span>
-                    </div>
-                    <div className="flex-1 p-3 min-w-0">
-                        <div className="flex gap-3">
-                            <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-1.5 text-[11px] text-[#818384] mb-1.5 flex-wrap">
-                                    <span className="font-medium text-[#d7dadc]">{post.subreddit_name_prefixed}</span>
-                                    <span>·</span>
-                                    <span>{timeAgo(post.created_utc)}</span>
-                                    {post.link_flair_text && (
-                                        <>
-                                            <span>·</span>
-                                            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-[#272729] text-[#d7dadc] border border-[#343536]">
+        <>
+            <div className="bg-[#1a1a1b] border border-[#343536] rounded overflow-hidden hover:border-[#818384] transition-all duration-150 hover:shadow-lg group">
+                <a href={postUrl} target="_blank" rel="noopener noreferrer" className="block">
+                    <div className="flex">
+                        <div className="flex flex-col items-center justify-start gap-1 px-2.5 py-3 bg-[#161617] min-w-[44px]">
+                            <IconArrowUp />
+                            <span className="text-[11px] font-bold text-[#d7dadc] leading-none">{fmtNum(post.score)}</span>
+                        </div>
+                        <div className="flex-1 p-3 min-w-0">
+                            <div className="flex gap-3">
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-1.5 text-[11px] text-[#818384] mb-1.5 flex-wrap">
+                                        <span className="font-medium text-[#d7dadc]">{post.subreddit_name_prefixed}</span>
+                                        <span>·</span>
+                                        <span>{timeAgo(post.created_utc)}</span>
+                                        {post.link_flair_text && (
+                                            <>
+                                                <span>·</span>
+                                                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-[#272729] text-[#d7dadc] border border-[#343536]">
                                                 {post.link_flair_text}
                                             </span>
-                                        </>
-                                    )}
-                                </div>
-                                <p className="text-sm font-medium text-[#d7dadc] leading-snug mb-1.5 group-hover:text-white transition-colors line-clamp-2">
-                                    {post.title}
-                                </p>
-                                <div className="flex items-center gap-3 text-[11px] text-[#818384]">
-                                    <span className="flex items-center gap-1">
-                                        <IconComment />{fmtNum(post.num_comments)} comments
-                                    </span>
-                                    {post.domain && !post.is_self && (
-                                        <span className="flex items-center gap-1 text-[#4fbdba] truncate max-w-[200px]">
+                                            </>
+                                        )}
+                                    </div>
+                                    <p className="text-sm font-medium text-[#d7dadc] leading-snug mb-1.5 group-hover:text-white transition-colors line-clamp-2">
+                                        {post.title}
+                                    </p>
+                                    <div className="flex items-center gap-3 text-[11px] text-[#818384]">
+                                        <button
+                                            onClick={(e) => { e.preventDefault(); if (!comments) handleLoadComments(); }}
+                                            disabled={commentsLoading}
+                                            className="flex items-center gap-1 hover:text-[#fe5301] transition-colors disabled:opacity-50 cursor-pointer"
+                                        >
+                                            <IconComment />{embedded ? "" : "show "}{fmtNum(post.num_comments)} comments
+                                        </button>
+                                        {post.domain && !post.is_self && (
+                                            <span className="flex items-center gap-1 text-[#4fbdba] truncate max-w-[200px]">
                                             <IconExternal /><span className="truncate">{post.domain}</span>
                                         </span>
-                                    )}
-                                    {hasBody && !thumb && (
-                                        <button
-                                            aria-label={bodyOpen ? "Hide post body" : "Show post body"}
-                                            onClick={(e) => { e.preventDefault(); setBodyOpen(o => !o); }}
-                                            className="flex items-center gap-1 ml-auto text-[#818384] hover:text-[#fe5301] transition-colors"
-                                        >
-                                            <svg aria-hidden="true" className={`w-3 h-3 transition-transform duration-200 ${bodyOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                            </svg>
-                                            {bodyOpen ? "hide body" : "show body"}
-                                        </button>
-                                    )}
+                                        )}
+                                        {hasBody && !thumb && (
+                                            <button
+                                                aria-label={bodyOpen ? "Hide post body" : "Show post body"}
+                                                onClick={(e) => { e.preventDefault(); setBodyOpen(o => !o); }}
+                                                className="flex items-center gap-1 ml-auto text-[#818384] hover:text-[#fe5301] transition-colors"
+                                            >
+                                                <svg aria-hidden="true" className={`w-3 h-3 transition-transform duration-200 ${bodyOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                </svg>
+                                                {bodyOpen ? "hide body" : "show body"}
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
+                                {thumb && (
+                                    <div className="flex-shrink-0 w-[70px] h-[52px] rounded overflow-hidden bg-[#272729]">
+                                        <img src={thumb} alt="" width="70" height="52" className="w-full h-full object-cover" loading="lazy"
+                                             onError={(e) => { e.target.style.display = "none"; }} />
+                                    </div>
+                                )}
                             </div>
-                            {thumb && (
-                                <div className="flex-shrink-0 w-[70px] h-[52px] rounded overflow-hidden bg-[#272729]">
-                                    <img src={thumb} alt="" width="70" height="52" className="w-full h-full object-cover" loading="lazy"
-                                         onError={(e) => { e.target.style.display = "none"; }} />
+                            {hasBody && thumb && (
+                                <div className="flex items-center mt-2 text-[11px] text-[#818384]">
+                                    <button
+                                        aria-label={bodyOpen ? "Hide post body" : "Show post body"}
+                                        onClick={(e) => { e.preventDefault(); setBodyOpen(o => !o); }}
+                                        className="flex items-center gap-1 ml-auto hover:text-[#fe5301] transition-colors"
+                                    >
+                                        <svg aria-hidden="true" className={`w-3 h-3 transition-transform duration-200 ${bodyOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                        {bodyOpen ? "hide body" : "show body"}
+                                    </button>
                                 </div>
                             )}
                         </div>
-                        {hasBody && thumb && (
-                            <div className="flex items-center mt-2 text-[11px] text-[#818384]">
-                                <button
-                                    aria-label={bodyOpen ? "Hide post body" : "Show post body"}
-                                    onClick={(e) => { e.preventDefault(); setBodyOpen(o => !o); }}
-                                    className="flex items-center gap-1 ml-auto hover:text-[#fe5301] transition-colors"
-                                >
-                                    <svg aria-hidden="true" className={`w-3 h-3 transition-transform duration-200 ${bodyOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                    </svg>
-                                    {bodyOpen ? "hide body" : "show body"}
-                                </button>
+                    </div>
+                </a>
+
+                {hasBody && bodyOpen && (
+                    <div className="border-t border-[#272729] px-4 pt-3 pb-3 ml-[44px]">
+                        <p className="text-[12px] text-[#d7dadc] leading-relaxed whitespace-pre-wrap">
+                            {post.selftext}
+                        </p>
+                    </div>
+                )}
+
+                {/* ── Loaded comments — merged inside the post card ── */}
+                {!embedded && (commentsLoading || comments !== null) && (
+                    <div className="border-t border-[#272729]">
+                        {commentsLoading ? (
+                            <div className="flex items-center gap-2 px-3 py-3 text-[#818384]">
+                                <IconSpinner />
+                                <span className="text-[11px]">Loading comments…</span>
+                            </div>
+                        ) : comments.length === 0 ? (
+                            <p className="text-[11px] text-[#818384] italic px-3 py-2">No archived comments found.</p>
+                        ) : (
+                            <div className="flex flex-col gap-0">
+                                <div className="px-3 py-1.5 text-[11px] text-[#818384]">
+                                    {comments.length} comment{comments.length !== 1 ? "s" : ""} loaded
+                                    {moreCommentsCount > 0 ? ` · +${moreCommentsCount} more not shown` : ""}
+                                </div>
+                                <div className="flex flex-col gap-2 px-3 pb-3">
+                                    {comments.map(c => (
+                                        <CommentCard key={c.id} comment={c} skipPostLoad={true} />
+                                    ))}
+                                </div>
                             </div>
                         )}
                     </div>
-                </div>
-            </a>
+                )}
+            </div>
+        </>
+    );
+}
 
-            {hasBody && bodyOpen && (
-                <div className="border-t border-[#272729] px-4 pt-3 pb-3 ml-[44px]">
-                    <p className="text-[12px] text-[#d7dadc] leading-relaxed whitespace-pre-wrap">
-                        {post.selftext}
-                    </p>
+// ─── Parent Chain ─────────────────────────────────────────────────────────────
+// Recursively loads and displays parent comments above the main comment.
+// Each level shows a "load parent comment" button; once fetched, that parent's
+// own parent chain is rendered above it (same pattern as the reference site).
+
+function ParentChain({ parentId }) {
+    const [comment, setComment] = useState(null);
+    const [loading, setLoading] = useState(false);
+
+    if (!parentId?.startsWith("t1_")) return null;
+
+    async function handleLoad() {
+        if (loading || comment) return;
+        setLoading(true);
+        try {
+            const res  = await fetch(`${ARCTIC}/api/comments/ids?ids=${parentId}`);
+            const json = await res.json();
+            if (json.data?.[0]) setComment(json.data[0]);
+        } catch (_) {}
+        setLoading(false);
+    }
+
+    return (
+        <div className="border-b border-[#272729]">
+            {/* Recurse: if this parent also has a parent comment, show its chain above */}
+            {comment && <ParentChain parentId={comment.parent_id} />}
+
+            {comment ? (
+                /* Loaded parent — rendered as a dimmed summary row */
+                <div className="flex opacity-80">
+                    <div className="w-5 bg-[#161617] flex-shrink-0" />
+                    <div className="flex flex-col items-center justify-start gap-1 px-2.5 py-2.5 bg-[#161617] min-w-[44px]">
+                        <IconArrowUp />
+                        <span className="text-[11px] font-bold text-[#d7dadc] leading-none">{fmtNum(comment.score)}</span>
+                    </div>
+                    <div className="flex-1 px-3 py-2.5 min-w-0">
+                        <div className="flex items-center gap-1.5 text-[11px] text-[#818384] mb-1 flex-wrap">
+                            <a href={`${REDDIT_BASE}/r/${comment.subreddit}`} target="_blank" rel="noopener noreferrer"
+                               className="font-medium text-[#d7dadc] hover:underline">
+                                {comment.subreddit_name_prefixed || `r/${comment.subreddit}`}
+                            </a>
+                            <span>by</span>
+                            <a href={`${REDDIT_BASE}/u/${comment.author}`} target="_blank" rel="noopener noreferrer"
+                               className="text-[#d7dadc] hover:underline">
+                                u/{comment.author}
+                            </a>
+                            <span>·</span>
+                            <span>{timeAgo(comment.created_utc)}</span>
+                        </div>
+                        <p className="text-sm text-[#818384] leading-relaxed line-clamp-3 whitespace-pre-wrap">
+                            {comment.body || "(no content)"}
+                        </p>
+                    </div>
+                </div>
+            ) : (
+                /* Not yet loaded — show button */
+                <div className="px-3 py-1.5">
+                    <button
+                        onClick={handleLoad}
+                        disabled={loading}
+                        className="flex items-center gap-1 text-[11px] text-[#818384] hover:text-[#d7dadc] hover:bg-[#272729] rounded px-2 py-0.5 transition-all disabled:opacity-50"
+                    >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                        </svg>
+                        {loading ? "loading…" : "load parent comment"}
+                    </button>
                 </div>
             )}
         </div>
@@ -386,43 +516,217 @@ function PostCard({ post }) {
 
 // ─── Comment Card ─────────────────────────────────────────────────────────────
 
-function CommentCard({ comment }) {
-    const threadId = comment.link_id?.split("_").pop();
-    const url = `${REDDIT_BASE}${comment.permalink}`;
+function CommentCard({ comment, isNested = false, skipPostLoad = false }) {
+    const [collapsed, setCollapsed]           = useState(false);
+    const [lineHovered, setLineHovered]       = useState(false);
+    const [post, setPost]                     = useState(null);
+    const [replies, setReplies]               = useState(null); // null = not yet fetched
+    const [repliesLoading, setRepliesLoading] = useState(false);
+    const [moreCount, setMoreCount]           = useState(null);
+
+    const threadId  = comment.link_id?.replace(/^t3_/, "");
+    const url       = `${REDDIT_BASE}${comment.permalink}`;
     const threadUrl = threadId ? `${REDDIT_BASE}/comments/${threadId}` : url;
-    const img = getCommentImage(comment);
+    const img       = getCommentImage(comment);
+
+    useEffect(() => {
+        if (!threadId || isNested || skipPostLoad) return;
+        fetch(`${ARCTIC}/api/posts/ids?ids=${threadId}`)
+            .then(r => r.json())
+            .then(json => { if (json.data?.[0]) setPost(json.data[0]); })
+            .catch(() => {});
+    }, [threadId, isNested, skipPostLoad]);
+
+    async function handleLoadReplies() {
+        if (!comment.link_id || repliesLoading) return;
+        setRepliesLoading(true);
+        try {
+            const res  = await fetch(
+                `${ARCTIC}/api/comments/tree?link_id=${comment.link_id}&parent_id=t1_${comment.id}&limit=25`
+            );
+            const json = await res.json();
+            const data = json.data || [];
+            // The response contains the parent comment at the top level;
+            // its direct children are nested in replies.data.children
+            const parentItem = data.find(item => item.kind === "t1" && item.data?.id === comment.id);
+            const childObjs  = parentItem?.data?.replies?.data?.children || [];
+            const children   = [];
+            let more = null;
+            for (const c of childObjs) {
+                if (c.kind === "t1")        children.push(c.data);
+                else if (c.kind === "more") more = c.data?.count ?? null;
+            }
+            setReplies(children);
+            setMoreCount(more);
+        } catch (_) {
+            setReplies([]);
+        }
+        setRepliesLoading(false);
+    }
+
     return (
-        <a href={url} target="_blank" rel="noopener noreferrer"
-           className="group block bg-[#1a1a1b] border border-[#343536] rounded overflow-hidden hover:border-[#818384] transition-all duration-150 hover:shadow-lg">
+        <div className={`bg-[#1a1a1b] border border-[#343536] rounded overflow-hidden transition-all duration-150 ${!isNested ? "hover:border-[#818384] hover:shadow-lg" : ""}`}>
+
+            {/* ── Parent post shown after auto-loading ── */}
+            {post && (
+                <div className="border-b border-[#343536]">
+                    <PostCard post={post} embedded={true} />
+                </div>
+            )}
+
+            {/* ── Parent comment chain (top-level cards only) ── */}
+            {!isNested && (
+                <ParentChain parentId={comment.parent_id} />
+            )}
+
+            {/* ── Comment row ── */}
             <div className="flex">
+                {/* Collapse line */}
+                <button
+                    aria-label={collapsed ? "Expand comment" : "Collapse comment"}
+                    onClick={() => setCollapsed(o => !o)}
+                    onMouseEnter={() => setLineHovered(true)}
+                    onMouseLeave={() => setLineHovered(false)}
+                    className="relative flex-shrink-0 w-5 bg-[#161617] transition-colors"
+                >
+                    <span
+                        className="absolute left-1/2 top-2 w-0.5 -translate-x-1/2 rounded-full transition-all duration-150"
+                        style={{ background: collapsed ? "#fe5301" : lineHovered ? "#818384" : "#343536", bottom: collapsed ? 8 : 0 }}
+                    />
+                </button>
+
+                {/* Score */}
                 <div className="flex flex-col items-center justify-start gap-1 px-2.5 py-3 bg-[#161617] min-w-[44px]">
                     <IconArrowUp />
                     <span className="text-[11px] font-bold text-[#d7dadc] leading-none">{fmtNum(comment.score)}</span>
                 </div>
+
+                {/* Content */}
                 <div className="flex-1 p-3 min-w-0">
+                    {/* Header — always visible */}
                     <div className="flex items-center gap-1.5 text-[11px] text-[#818384] mb-1.5 flex-wrap">
-                        <span className="font-medium text-[#d7dadc]">{comment.subreddit_name_prefixed}</span>
+                        <a href={`${REDDIT_BASE}/r/${comment.subreddit}`} target="_blank" rel="noopener noreferrer"
+                           className="font-medium text-[#d7dadc] hover:underline">
+                            {comment.subreddit_name_prefixed || `r/${comment.subreddit}`}
+                        </a>
+                        <span>by</span>
+                        <a href={`${REDDIT_BASE}/u/${comment.author}`} target="_blank" rel="noopener noreferrer"
+                           className="text-[#d7dadc] hover:underline">
+                            u/{comment.author}
+                        </a>
                         <span>·</span>
                         <span>{timeAgo(comment.created_utc)}</span>
                         <span>·</span>
                         <a href={threadUrl} target="_blank" rel="noopener noreferrer"
-                           onClick={(e) => e.stopPropagation()}
                            className="text-[#4fbdba] hover:underline flex items-center gap-0.5">
                             view thread <IconExternal />
                         </a>
+                        <span>·</span>
+                        <a href={url} target="_blank" rel="noopener noreferrer"
+                           className="text-[#4fbdba] hover:underline flex items-center gap-0.5">
+                            view comment <IconExternal />
+                        </a>
                     </div>
-                    <p className="text-sm text-[#d7dadc] leading-relaxed line-clamp-4 group-hover:text-white transition-colors">
-                        {comment.body || "(no content)"}
-                    </p>
-                    {img && (
-                        <div className="mt-2 w-24 h-16 rounded overflow-hidden bg-[#272729]">
-                            <img src={img} alt="" width="96" height="64" className="w-full h-full object-cover" loading="lazy"
-                                 onError={(e) => { e.target.style.display = "none"; }} />
-                        </div>
+
+                    {/* Body — hidden when collapsed */}
+                    {!collapsed && (
+                        <>
+                            <p className="text-sm text-[#d7dadc] leading-relaxed whitespace-pre-wrap">
+                                {comment.body || "(no content)"}
+                            </p>
+                            {img && (
+                                <div className="mt-2 w-24 h-16 rounded overflow-hidden bg-[#272729]">
+                                    <img src={img} alt="" width="96" height="64" className="w-full h-full object-cover" loading="lazy"
+                                         onError={(e) => { e.target.style.display = "none"; }} />
+                                </div>
+                            )}
+                        </>
                     )}
                 </div>
             </div>
-        </a>
+
+            {/* ── Replies section ── */}
+            {!collapsed && (
+                <>
+                    {/* + / - button with curved connector — shown before replies load */}
+                    {!replies && (
+                        <div className="flex items-center py-1.5" style={{ paddingLeft: 9 }}>
+                            {/* SVG curve — clickable, glows on hover, collapses comment */}
+                            <button
+                                aria-label="Collapse comment"
+                                onClick={() => setCollapsed(true)}
+                                onMouseEnter={() => setLineHovered(true)}
+                                onMouseLeave={() => setLineHovered(false)}
+                                className="flex-shrink-0 -mt-[14px] bg-transparent border-0 p-0 cursor-pointer"
+                            >
+                                <svg width="20" height="32" viewBox="0 0 20 32" fill="none">
+                                    <path d="M 1 0 L 1 17 Q 1 24 8 24 L 20 24"
+                                          stroke={lineHovered ? "#818384" : "#343536"} strokeWidth="1.5" strokeLinecap="round" fill="none"
+                                          style={{ transition: "stroke 150ms" }} />
+                                </svg>
+                            </button>
+                            {/* ⊕ circle button */}
+                            <button
+                                onClick={handleLoadReplies}
+                                disabled={repliesLoading}
+                                aria-label="Load replies"
+                                className="w-[18px] h-[18px] rounded-full border-2 border-[#4a4a4b] bg-[#1a1a1b] flex items-center justify-center text-[#818384] hover:border-[#fe5301] hover:text-[#fe5301] transition-all disabled:opacity-40 flex-shrink-0 -ml-[1px]"
+                            >
+                                {repliesLoading
+                                    ? <span className="text-[9px] leading-none">…</span>
+                                    : <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor">
+                                        <rect x="3.25" y="0" width="1.5" height="8" rx="0.75"/>
+                                        <rect x="0" y="3.25" width="8" height="1.5" rx="0.75"/>
+                                    </svg>
+                                }
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Loaded replies — SVG curve connector into each reply */}
+                    {replies && (
+                        <div className="flex" style={{ paddingLeft: 9 }}>
+                            {/* Single vertical line connecting down from parent collapse line */}
+                            <div className="flex-shrink-0 w-5 relative" style={{ marginTop: -14 }}>
+                                <div className="absolute" style={{ left: 0, top: 0, bottom: 0, width: "1.5px", background: "#343536" }} />
+                            </div>
+                            {/* Replies column */}
+                            <div className="flex-1 min-w-0">
+                                {replies.length > 0 ? (
+                                    <div className="flex flex-col gap-1.5 py-1.5 pr-2">
+                                        {replies.map(reply => (
+                                            <div key={reply.id} className="flex items-start">
+                                                {/* Short horizontal branch off the vertical line */}
+                                                <svg width="12" height="44" viewBox="0 0 12 44" fill="none"
+                                                     className="flex-shrink-0 self-start" style={{ marginTop: 19, marginLeft: -20, color: "#343536" }}>
+                                                    <path d="M 1 0 Q 1 7 8 7 L 12 7"
+                                                          stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+                                                </svg>
+                                                <div className="flex-1 min-w-0">
+                                                    <CommentCard comment={reply} isNested={true} />
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center py-2">
+                                        <svg width="12" height="14" viewBox="0 0 12 14" fill="none"
+                                             className="flex-shrink-0" style={{ marginLeft: -20, color: "#343536" }}>
+                                            <path d="M 1 0 Q 1 7 8 7 L 12 7"
+                                                  stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+                                        </svg>
+                                        <p className="text-[11px] text-[#818384] italic">No archived replies found.</p>
+                                    </div>
+                                )}
+                                {moreCount > 0 && (
+                                    <p className="text-[11px] text-[#818384] pl-1 pb-2">+{moreCount} more {moreCount === 1 ? "reply" : "replies"} not shown</p>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </>
+            )}
+        </div>
     );
 }
 
@@ -1129,7 +1433,7 @@ export default function App() {
                                 type="text"
                                 value={subreddit}
                                 onChange={(e) => setSubreddit(e.target.value.replace(/^r\//, ""))}
-                                placeholder="subreddit"
+                                placeholder="subreddit (optional)"
                                 className="w-full bg-[#1a1a1b] border border-[#343536] rounded pl-8 pr-3 py-2.5 text-sm text-white placeholder-[#818384] focus:outline-none focus:border-[#ff4500] transition-colors"
                             />
                         </div>
