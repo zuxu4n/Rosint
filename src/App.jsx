@@ -732,18 +732,41 @@ function CommentCard({ comment, isNested = false, skipPostLoad = false }) {
 
 // ─── Empty / Error ────────────────────────────────────────────────────────────
 
-function EmptyState({ tab }) {
+function EmptyState({ tab, hasFilters, query, onSwitchTab, onClearFilters }) {
+    const otherTab = tab === "posts" ? "comments" : "posts";
     return (
         <div className="text-center py-16 text-[#818384]">
-            <p className="text-sm">No {tab} found for this user.</p>
+            <p className="text-sm mb-2">No {tab} found for this user.</p>
+            <p className="text-[12px] text-[#5a5a5b] mb-4">Their history may not be fully indexed yet.</p>
+            <div className="flex flex-col items-center gap-2 text-[12px]">
+                <button type="button" onClick={onSwitchTab} className="text-[#ff4500] hover:underline">
+                    Switch to {otherTab} →
+                </button>
+                {hasFilters && (
+                    <button type="button" onClick={onClearFilters} className="text-[#ff4500] hover:underline">
+                        Clear date filters and retry →
+                    </button>
+                )}
+                <a href={`https://www.reddit.com/search/?q=author%3A%22${query}%22&type=${tab}`}
+                   target="_blank" rel="noopener noreferrer"
+                   className="text-[#4fbdba] hover:underline">
+                    Search Reddit directly →
+                </a>
+            </div>
         </div>
     );
 }
 
-function ErrorState({ message }) {
+function ErrorState({ message, onRetry }) {
     return (
         <div className="text-center py-16">
-            <p className="text-sm text-red-400">{message}</p>
+            <p className="text-sm text-red-400 mb-1">{message}</p>
+            <p className="text-[11px] text-[#5a5a5b] mb-3">The archive may be temporarily unavailable.</p>
+            {onRetry && (
+                <button type="button" onClick={onRetry} className="text-[12px] text-[#ff4500] hover:underline">
+                    Try again →
+                </button>
+            )}
         </div>
     );
 }
@@ -1157,9 +1180,9 @@ function SecondaryGlobalChart({
     );
 }
 
-function GlobalChartsPanel() {
+function GlobalChartsPanel({ compact }) {
     return (
-        <section className="max-w-3xl mx-auto px-4 mt-8 mb-32">
+        <section className={`max-w-3xl mx-auto px-4 mb-32 ${compact ? "mt-3" : "mt-6"}`}>
             <div className="grid gap-4 md:grid-cols-2">
                 <TotalActivityChart />
                 <SecondaryGlobalChart
@@ -1257,11 +1280,24 @@ export default function App() {
     const [appliedSubreddit, setAppliedSubreddit] = useState("");
     const [sortOrder, setSortOrder] = useState("desc");
     const [showGraphs, setShowGraphs] = useState(false);
+    const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+    const [suggestionIdx, setSuggestionIdx] = useState(0);
+    const EXAMPLE_USERS = ["spez", "GallowBoob", "Unidan", "kn0thing"];
 
     const posts = usePaginatedFetch("posts");
     const comments = usePaginatedFetch("comments");
 
-    useEffect(() => { document.title = "Rosint"; }, []);
+    useEffect(() => {
+        document.title = searched && query
+            ? `u/${query} – Rosint`
+            : "Rosint – Search Deleted Reddit Posts";
+    }, [searched, query]);
+
+    useEffect(() => {
+        if (searched) return;
+        const id = setInterval(() => setSuggestionIdx(i => (i + 1) % 4), 2500);
+        return () => clearInterval(id);
+    }, [searched]);
 
     const buildFilters = useCallback(() => {
         const f = {};
@@ -1286,13 +1322,11 @@ export default function App() {
         });
     }, []);
 
-    const handleSubmit = useCallback(async (e) => {
-        e.preventDefault();
-        const user = username.trim();
-        if (!user) return;
+    const searchUser = useCallback(async (user) => {
         const url = new URL(window.location.href);
         url.searchParams.set("u", user);
         window.history.pushState({}, "", url);
+        setUsername(user);
         setQuery(user);
         setSearched(true);
         setInitialLoading(true);
@@ -1300,7 +1334,22 @@ export default function App() {
         await Promise.all([posts.reset(user, filters), comments.reset(user, filters)]);
         setAppliedSubreddit(subreddit.trim());
         setInitialLoading(false);
-    }, [username, buildFilters, posts, comments, subreddit]);
+    }, [buildFilters, posts, comments, subreddit]);
+
+    const handleSubmit = useCallback(async (e) => {
+        e.preventDefault();
+        const user = username.trim();
+        if (!user) return;
+        await searchUser(user);
+    }, [username, searchUser]);
+
+    const handleRetry = useCallback(async () => {
+        if (!query) return;
+        setInitialLoading(true);
+        const filters = buildFilters();
+        await Promise.all([posts.reset(query, filters), comments.reset(query, filters)]);
+        setInitialLoading(false);
+    }, [query, buildFilters, posts, comments]);
 
     const clearFilters = useCallback(async () => {
         setDateFrom("");
@@ -1387,7 +1436,6 @@ export default function App() {
                         <span className="text-[22px] font-semibold tracking-tight text-white whitespace-nowrap max-w-0 overflow-hidden opacity-0 group-hover:max-w-xs group-hover:opacity-100 transition-all duration-700 ease-out">
                             reddit<span className="text-[#fe5301]">OSINT</span>
                         </span>
-                        <span className="text-[11px] text-[#818384] border border-[#343536] rounded px-1.5 py-0.5 flex-shrink-0">beta</span>
                         <AnimeFace />
                     </button>
                     <div className="flex-1 flex justify-end items-center gap-4">
@@ -1414,60 +1462,54 @@ export default function App() {
                                 <source srcSet="/rosintTitle.png" type="image/png" />
                                 <img src="/rosintTitle.png" alt="redditOSINT" width="578" height="284" className="mx-auto mb-4" style={{ width: "578px", maxWidth: "90vw" }} />
                             </picture>
-                            <p className="text-sm text-[#cccccc]">View private accounts and deleted posts/comments from any user via distributed open-source archives.</p>
+                            <p className="text-sm text-[#cccccc]">Search any Reddit username to view their <u>deleted posts</u>, <u>removed comments</u>, and <u>private profiles</u>.</p>
                         </div>
                     )}
 
-                    <form onSubmit={handleSubmit} className="flex gap-2">
-                        <div className="relative" style={{ flex: "2 1 0" }}>
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#cccccc] text-sm font-medium select-none">u/</span>
-                            <input aria-label="Reddit username" type="text" value={username} onChange={(e) => setUsername(e.target.value)}
-                                   placeholder="username"
-                                   className="w-full bg-[#1a1a1b] border border-[#343536] rounded pl-8 pr-3 py-2.5 text-sm text-white placeholder-[#818384] focus:outline-none focus:border-[#ff4500] transition-colors"
-                                   autoFocus />
-                        </div>
-                        <div className="relative" style={{ flex: "1 1 0" }}>
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#818384] text-sm font-medium select-none">r/</span>
-                            <input
-                                aria-label="Filter by subreddit"
-                                type="text"
-                                value={subreddit}
-                                onChange={(e) => setSubreddit(e.target.value.replace(/^r\//, ""))}
-                                placeholder="subreddit (optional)"
-                                className="w-full bg-[#1a1a1b] border border-[#343536] rounded pl-8 pr-3 py-2.5 text-sm text-white placeholder-[#818384] focus:outline-none focus:border-[#ff4500] transition-colors"
-                            />
-                        </div>
-                        <button type="submit" disabled={!username.trim() || initialLoading}
-                                className="flex items-center gap-2 bg-[#ff4500] hover:bg-[#e03d00] disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium text-sm px-5 py-2.5 rounded transition-colors flex-shrink-0">
-                            {initialLoading ? <IconSpinner /> : <IconSearch />}
-                            {initialLoading && "Searching…"}
-                        </button>
-                    </form>
+                    <div className="relative">
+                        {!searched && (
+                            <div className="absolute right-full top-1/2 -translate-y-1/2 mr-4 hidden sm:block" style={{ whiteSpace: 'nowrap' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => searchUser(EXAMPLE_USERS[suggestionIdx])}
+                                    className="relative bg-[#1a1a1b] border border-[#343536] hover:border-[#ff4500] rounded-lg px-3 py-2 text-[12px] text-[#818384] hover:text-[#d7dadc] transition-colors group"
+                                >
+                                    Try <span className="text-[#ff4500]">u/{EXAMPLE_USERS[suggestionIdx]}</span>
+                                    {/* tail border */}
+                                    <span className="absolute left-full top-1/2 -translate-y-1/2 border-l-[#343536] group-hover:border-l-[#ff4500] transition-colors" style={{ width: 0, height: 0, borderTop: '6px solid transparent', borderBottom: '6px solid transparent', borderLeftWidth: '8px', borderLeftStyle: 'solid' }} />
+                                    {/* tail fill */}
+                                    <span className="absolute top-1/2 -translate-y-1/2" style={{ left: 'calc(100% - 1px)', width: 0, height: 0, borderTop: '5px solid transparent', borderBottom: '5px solid transparent', borderLeftWidth: '7px', borderLeftStyle: 'solid', borderLeftColor: '#1a1a1b' }} />
+                                </button>
+                            </div>
+                        )}
+                        <form onSubmit={handleSubmit} className="flex gap-2">
+                            <div className="relative" style={{ flex: "1 1 0" }}>
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#cccccc] text-sm font-medium select-none">u/</span>
+                                <input aria-label="Reddit username" type="text" value={username} onChange={(e) => setUsername(e.target.value)}
+                                       placeholder="username"
+                                       className="w-full bg-[#1a1a1b] border border-[#343536] rounded pl-8 pr-3 py-2.5 text-sm text-white placeholder-[#818384] focus:outline-none focus:border-[#ff4500] transition-colors"
+                                       autoFocus />
+                            </div>
+                            <button type="submit" disabled={!username.trim() || initialLoading}
+                                    className="flex items-center gap-2 bg-[#ff4500] hover:bg-[#e03d00] disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium text-sm px-5 py-2.5 rounded transition-colors flex-shrink-0">
+                                {initialLoading ? <IconSpinner /> : <IconSearch />}
+                                {initialLoading && "Searching…"}
+                            </button>
+                        </form>
+                    </div>
 
                     {!searched && (
                         <div className="flex flex-wrap items-center gap-2 mt-3">
-                            <span className="text-[11px] text-[#818384]">From</span>
-                            <input
-                                aria-label="Date from"
-                                type="date"
-                                value={dateFrom}
-                                onChange={(e) => setDateFrom(e.target.value)}
-                                className="bg-[#1a1a1b] border border-[#343536] rounded-sm px-2 py-1 text-[12px] text-[#d7dadc] focus:outline-none focus:border-[#ff4500] transition-colors [color-scheme:dark]"
-                            />
-                            <span className="text-[11px] text-[#818384]">To</span>
-                            <input
-                                aria-label="Date to"
-                                type="date"
-                                value={dateTo}
-                                onChange={(e) => setDateTo(e.target.value)}
-                                className="bg-[#1a1a1b] border border-[#343536] rounded-sm px-2 py-1 text-[12px] text-[#d7dadc] focus:outline-none focus:border-[#ff4500] transition-colors [color-scheme:dark]"
-                            />
-                            {hasFilters && (
-                                <button type="button" onClick={() => { setDateFrom(""); setDateTo(""); setSubreddit(""); }}
-                                        className="px-3 py-1 text-[12px] text-[#818384] hover:text-[#d7dadc] transition-colors">
-                                    Clear
-                                </button>
-                            )}
+                            <button
+                                type="button"
+                                onClick={() => setShowAdvancedFilters(f => !f)}
+                                className="flex items-center gap-1.5 text-[12px] text-[#818384] hover:text-[#d7dadc] transition-colors"
+                            >
+                                Advanced filters
+                                <svg aria-hidden="true" className={`w-3 h-3 transition-transform duration-200 ${showAdvancedFilters ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
                             <button
                                 type="button"
                                 onClick={() => setShowGraphs(g => !g)}
@@ -1478,11 +1520,53 @@ export default function App() {
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                 </svg>
                             </button>
+                            {showAdvancedFilters && (
+                                <div className="w-full flex flex-col gap-2 mt-1 items-start">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <span className="text-[11px] text-[#818384]">From</span>
+                                        <input
+                                            aria-label="Date from"
+                                            type="date"
+                                            value={dateFrom}
+                                            onChange={(e) => setDateFrom(e.target.value)}
+                                            className="bg-[#1a1a1b] border border-[#343536] rounded-sm px-2 py-1 text-[12px] text-[#d7dadc] focus:outline-none focus:border-[#ff4500] transition-colors [color-scheme:dark]"
+                                        />
+                                        <span className="text-[11px] text-[#818384]">To</span>
+                                        <input
+                                            aria-label="Date to"
+                                            type="date"
+                                            value={dateTo}
+                                            onChange={(e) => setDateTo(e.target.value)}
+                                            className="bg-[#1a1a1b] border border-[#343536] rounded-sm px-2 py-1 text-[12px] text-[#d7dadc] focus:outline-none focus:border-[#ff4500] transition-colors [color-scheme:dark]"
+                                        />
+                                        <div className="flex items-center gap-2 w-full sm:w-auto">
+                                        <span className="text-[11px] text-[#818384]">in</span>
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#818384] text-sm font-medium select-none">r/</span>
+                                            <input
+                                                aria-label="Filter by subreddit"
+                                                type="text"
+                                                value={subreddit}
+                                                onChange={(e) => setSubreddit(e.target.value.replace(/^r\//, ""))}
+                                                placeholder="subreddit"
+                                                className="bg-[#1a1a1b] border border-[#343536] rounded pl-8 pr-3 py-1 text-[12px] text-white placeholder-[#818384] focus:outline-none focus:border-[#ff4500] transition-colors"
+                                            />
+                                        </div>
+                                        </div>
+                                    </div>
+                                    {hasFilters && (
+                                        <button type="button" onClick={() => { setDateFrom(""); setDateTo(""); setSubreddit(""); }}
+                                                className="w-fit px-3 py-1 text-[12px] text-[#818384] hover:text-[#d7dadc] transition-colors">
+                                            Clear
+                                        </button>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
 
-                {!searched && showGraphs && <GlobalChartsPanel />}
+                {!searched && showGraphs && <GlobalChartsPanel compact={showAdvancedFilters} />}
 
                 {searched && (
                     <div className="max-w-3xl mx-auto px-4 mt-6 pb-16">
@@ -1500,7 +1584,7 @@ export default function App() {
                                                     <span key={src}>
                                                         {i > 0 && <span className="text-[#818384]"> + </span>}
                                                         <a href={url} target="_blank" rel="noopener noreferrer"
-                                                           className="text-[#d7dadc] hover:text-white hover:underline transition-colors">
+                                                           className="text-white hover:underline transition-colors">
                                                             {src}
                                                         </a>
                                                     </span>
@@ -1588,9 +1672,15 @@ export default function App() {
                                 <span className="text-sm">Fetching from Arctic Shift + PullPush…</span>
                             </div>
                         ) : active.error ? (
-                            <ErrorState message={active.error} />
+                            <ErrorState message={active.error} onRetry={handleRetry} />
                         ) : active.items.length === 0 ? (
-                            <EmptyState tab={activeTab} />
+                            <EmptyState
+                                tab={activeTab}
+                                hasFilters={!!hasFilters}
+                                query={query}
+                                onSwitchTab={() => setActiveTab(activeTab === "posts" ? "comments" : "posts")}
+                                onClearFilters={clearFilters}
+                            />
                         ) : (
                             <>
                                 <div className="flex flex-col gap-2">
@@ -1628,9 +1718,12 @@ export default function App() {
             </main>
 
             {!searched && (
-                <footer className="fixed bottom-0 left-0 right-0 z-10 py-2 bg-[#0d0d0d] border-t border-[#1c1c1d]">
+                <footer className="fixed bottom-0 left-0 right-0 z-10 py-2 bg-[#0d0d0d] border-t border-[#1c1c1d]" style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom))' }}>
                     <p className="text-[11px] text-[#3a3a3b] leading-relaxed text-center">
-                        redditOSINT is a free tool to search deleted Reddit posts, removed comments, and private Reddit accounts using open-source archives including Arctic Shift and PullPush.
+                        RedditOSINT is a free tool to search deleted Reddit posts, removed comments, and private Reddit accounts using open-source archives including{" "}
+                        <a href="https://github.com/ArthurHeitmann/arctic_shift" target="_blank" rel="noopener noreferrer" className="text-[#3a3a3b] hover:underline transition-colors">Arctic Shift</a>
+                        {" "}and{" "}
+                        <a href="https://pullpush.io/" target="_blank" rel="noopener noreferrer" className="text-[#3a3a3b] hover:underline transition-colors">PullPush</a>.
                     </p>
                 </footer>
             )}
