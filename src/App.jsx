@@ -1182,7 +1182,7 @@ function SecondaryGlobalChart({
 
 function GlobalChartsPanel({ compact }) {
     return (
-        <section className={`max-w-3xl mx-auto px-4 mb-32 ${compact ? "mt-3" : "mt-6"}`}>
+        <section className={`mx-auto px-4 mb-32 ${compact ? "mt-3" : "mt-6"}`} style={{ maxWidth: '730px' }}>
             <div className="grid gap-4 md:grid-cols-2">
                 <TotalActivityChart />
                 <SecondaryGlobalChart
@@ -1436,6 +1436,7 @@ export default function App() {
                         <span className="text-[22px] font-semibold tracking-tight text-white whitespace-nowrap max-w-0 overflow-hidden opacity-0 group-hover:max-w-xs group-hover:opacity-100 transition-all duration-700 ease-out">
                             reddit<span className="text-[#fe5301]">OSINT</span>
                         </span>
+                        <span className="text-[11px] text-[#818384] border border-[#343536] rounded px-1.5 py-0.5 flex-shrink-0">beta</span>
                         <AnimeFace />
                     </button>
                     <div className="flex-1 flex justify-end items-center gap-4">
@@ -1466,7 +1467,7 @@ export default function App() {
                         </div>
                     )}
 
-                    <div className="relative">
+                    <div className="relative mx-auto" style={{ maxWidth: '690px' }}>
                         {!searched && (
                             <div className="absolute right-full top-1/2 -translate-y-1/2 mr-4 hidden sm:block" style={{ whiteSpace: 'nowrap' }}>
                                 <button
@@ -1499,7 +1500,7 @@ export default function App() {
                     </div>
 
                     {!searched && (
-                        <div className="flex flex-wrap items-center gap-2 mt-3">
+                        <div className="flex flex-wrap items-center gap-2 mt-3 mx-auto" style={{ maxWidth: '690px' }}>
                             <button
                                 type="button"
                                 onClick={() => setShowAdvancedFilters(f => !f)}
