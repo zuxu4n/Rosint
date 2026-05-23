@@ -46,6 +46,32 @@
             right: 24px;
             text-align: center;
         }
+        .side-panel {
+            position: fixed;
+            right: 24px;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+        @media (max-width: 768px) {
+            h1 { font-size: 36px; }
+            .powered { font-size: 28px; }
+            .top-right {
+                position: static;
+                text-align: left;
+                margin-top: 48px;
+            }
+            .side-panel {
+                position: static;
+                transform: none;
+                align-items: flex-start;
+                margin-top: 24px;
+                margin-bottom: 40px;
+            }
+        }
         .powered {
             font-size: 53px;
             font-weight: 600;
@@ -70,7 +96,16 @@
 </head>
 <body>
 
+<script type='text/javascript' src='https://storage.ko-fi.com/cdn/widget/Widget_2.js'></script>
+<script type='text/javascript'>kofiwidget2.init('Support me!', '#ed6023', 'V0C520357J');kofiwidget2.draw();</script>
+
 <h1>Updates and stuff</h1>
+
+<div class="entry">
+    <div class="entry-title">Fixed formatting</div>
+    <div class="entry-date">5/23/2026</div>
+    <div class="entry-desc">Formats correctly on mobile</div>
+</div>
 
 <div class="entry">
     <div class="entry-title">Added suggestions</div>
@@ -127,7 +162,7 @@
     </div>
 </div>
 
-<div style="position:fixed;right:24px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;align-items:center;gap:10px;">
+<div class="side-panel">
     <img src="/dih.jpg" alt="" style="width:160px;border-radius:12px;" />
     <a href="https://github.com/zuxu4n/RedditOsint" target="_blank" rel="noopener noreferrer" style="color:#fff;font-family:'Times New Roman',Times,serif;font-size:15px;text-decoration:underline;">Github</a>
 </div>
