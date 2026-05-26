@@ -348,7 +348,7 @@ function PostCard({ post, embedded = false }) {
                                             </>
                                         )}
                                     </div>
-                                    <p className="text-sm font-medium text-[#d7dadc] leading-snug mb-1.5 group-hover:text-white transition-colors line-clamp-2">
+                                    <p className="text-sm font-medium text-[#d7dadc] leading-snug mb-1.5 group-hover:text-white transition-colors break-words">
                                         {post.title}
                                     </p>
                                     <div className="flex items-center gap-3 text-[11px] text-[#818384]">
@@ -405,7 +405,7 @@ function PostCard({ post, embedded = false }) {
 
                 {hasBody && bodyOpen && (
                     <div className="border-t border-[#272729] px-4 pt-3 pb-3 ml-[44px]">
-                        <p className="text-[12px] text-[#d7dadc] leading-relaxed whitespace-pre-wrap">
+                        <p className="text-[12px] text-[#d7dadc] leading-relaxed whitespace-pre-wrap break-words">
                             {post.selftext}
                         </p>
                     </div>
@@ -490,7 +490,7 @@ function ParentChain({ parentId }) {
                             <span>·</span>
                             <span>{timeAgo(comment.created_utc)}</span>
                         </div>
-                        <p className="text-sm text-[#818384] leading-relaxed line-clamp-3 whitespace-pre-wrap">
+                        <p className="text-sm text-[#818384] leading-relaxed line-clamp-3 whitespace-pre-wrap break-words">
                             {comment.body || "(no content)"}
                         </p>
                     </div>
@@ -631,7 +631,7 @@ function CommentCard({ comment, isNested = false, skipPostLoad = false }) {
                     {/* Body — hidden when collapsed */}
                     {!collapsed && (
                         <>
-                            <p className="text-sm text-[#d7dadc] leading-relaxed whitespace-pre-wrap">
+                            <p className="text-sm text-[#d7dadc] leading-relaxed whitespace-pre-wrap break-words">
                                 {comment.body || "(no content)"}
                             </p>
                             {img && (
@@ -776,7 +776,7 @@ function ErrorState({ message, onRetry }) {
 function TabBtn({ label, count, countIsPlus, active, onClick }) {
     return (
         <button onClick={onClick}
-                className={`relative px-4 py-2.5 text-sm font-medium transition-colors ${active ? "text-white" : "text-[#818384] hover:text-[#d7dadc]"}`}>
+                className={`relative px-2.5 py-2 text-[13px] sm:px-4 sm:py-2.5 sm:text-sm font-medium transition-colors ${active ? "text-white" : "text-[#818384] hover:text-[#d7dadc]"}`}>
             {label}
             {count > 0 && (
                 <span className={`ml-1.5 text-[11px] px-1.5 py-0.5 rounded-full ${active ? "bg-[#ff4500] text-white" : "bg-[#272729] text-[#818384]"}`}>
@@ -1492,7 +1492,7 @@ export default function App() {
                         </div>
                     )}
 
-                    <div className="relative mx-auto" style={{ maxWidth: '690px' }}>
+                    <div className="relative mx-auto" style={{ maxWidth: searched ? '100%' : '690px' }}>
                         {!searched && (
                             <div className="absolute right-full top-1/2 -translate-y-1/2 mr-4 hidden sm:block" style={{ whiteSpace: 'nowrap' }}>
                                 <button
