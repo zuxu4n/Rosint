@@ -11,7 +11,7 @@
             background: #0d0d0d;
             color: #d7dadc;
             font-family: 'Times New Roman', Times, serif;
-            padding: 60px 20px 80px;
+            padding: 24px 20px 80px;
             position: relative;
         }
         h1 {
@@ -92,6 +92,51 @@
             color: #fff;
             text-decoration: underline;
         }
+        .privacy-section {
+            border: 1px solid #343536;
+            border-radius: 8px;
+            padding: 28px 32px;
+            margin-top: 24px;
+            margin-bottom: 40px;
+            max-width: 760px;
+        }
+        .privacy-section h1 {
+            font-size: 32px;
+            color: #d7dadc;
+            margin-bottom: 18px;
+        }
+        .policy p {
+            font-size: 15px;
+            color: #a8a8a9;
+            line-height: 1.6;
+            margin-bottom: 14px;
+        }
+        .policy ul {
+            font-size: 15px;
+            color: #a8a8a9;
+            line-height: 1.6;
+            margin: 0 0 14px 22px;
+        }
+        .policy strong {
+            color: #d7dadc;
+        }
+        .policy a {
+            color: #ff8c5a;
+            text-decoration: underline;
+        }
+        .policy .effective {
+            font-size: 13px;
+            color: #818384;
+            margin-bottom: 22px;
+        }
+        .section-spacer { margin-top: 0; }
+        .updates-title {
+            display: block;
+            width: 680px;
+            max-width: 100%;
+            height: auto;
+            margin-bottom: 24px;
+        }
     </style>
 </head>
 <body>
@@ -99,10 +144,37 @@
 <script type='text/javascript' src='https://storage.ko-fi.com/cdn/widget/Widget_2.js'></script>
 <script type='text/javascript'>kofiwidget2.init('Support me!', '#ed6023', 'V0C520357J');kofiwidget2.draw();</script>
 
-<h1>Updates and stuff</h1>
+<div class="privacy-section">
+    <h1 id="privacy">Privacy</h1>
+
+    <div class="policy">
+        <p class="effective">Effective: May 26, 2026</p>
+
+        <p><strong>rosint.dev</strong> has no backend, no accounts, and does not store your searches.</p>
+
+        <p><strong>On this site we use:</strong></p>
+        <ul>
+            <li><strong>Google Analytics 4</strong>: cookies and visit metrics. See <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Google's privacy policy</a>.</li>
+            <li><strong>Vercel Analytics</strong>: cookieless visit counts, plus standard server logs from Vercel hosting. See <a href="https://vercel.com/legal/privacy-policy" target="_blank" rel="noopener noreferrer">Vercel's privacy policy</a>.</li>
+        </ul>
+
+        <p><strong>When you search:</strong> your browser sends the query directly to <a href="https://arctic-shift.photon-reddit.com" target="_blank" rel="noopener noreferrer">Arctic Shift</a> and <a href="https://pullpush.io" target="_blank" rel="noopener noreferrer">PullPush</a>. These requests do not pass through our server. Arctic Shift does not publish a privacy policy. By searching, you accept that.</p>
+
+        <p><strong>Your rights</strong> (PIPEDA, GDPR, Quebec Law 25, and similar): access, correction, deletion, or complaint to a regulator. Contact: <a href="mailto:zuxu4n@proton.me">zuxu4n@proton.me</a>.</p>
+    </div>
+</div>
+
+<img id="changelog" src="/updatesnstuff.png" alt="Updates n Stuff" class="updates-title" />
 
 <div class="entry">
-    <div class="entry-title">Now shows complete title and wraps any ubreakable text.</div>
+    <div class="entry-title">Privacy policy added</div>
+    <div class="entry-date">5/26/2026</div>
+    <div class="entry-desc">Published a privacy policy at the top of this page, covering analytics (Google Analytics, Vercel Analytics),<br>
+        third-party API calls (Arctic Shift, PullPush), and user rights under PIPEDA, GDPR, and Quebec Law 25. Linked from the "Docs" chip in the header.</div>
+</div>
+
+<div class="entry">
+    <div class="entry-title">Changed so that complete title is shown and wraps any ubreakable text.</div>
     <div class="entry-date">5/26/2026</div>
     <div class="entry-desc">UI polish for cards, tabs, and search bar.</div>
 </div>

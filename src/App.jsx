@@ -1448,7 +1448,7 @@ export default function App() {
                         <span className="text-[22px] font-semibold tracking-tight text-white whitespace-nowrap max-w-0 overflow-hidden opacity-0 group-hover:max-w-xs group-hover:opacity-100 transition-all duration-700 ease-out">
                             reddit<span className="text-[#fe5301]">OSINT</span>
                         </span>
-                        <span className="text-[11px] text-[#818384] border border-[#343536] rounded px-1.5 py-0.5 flex-shrink-0">beta</span>
+                        <span className="text-[11px] text-[#818384] border border-[#343536] rounded px-1.5 py-0.5 flex-shrink-0">v1.0</span>
                         <AnimeFace />
                     </button>
                     <div className="flex-1 flex justify-end items-center gap-4">
