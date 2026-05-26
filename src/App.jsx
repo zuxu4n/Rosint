@@ -215,7 +215,7 @@ async function fetchBoth(username, type, pagination = {}, dateFilters = {}) {
     });
 
     merged.sort((a, b) => b.created_utc - a.created_utc);
-    return { items: merged, sources };
+    return { items: merged, sources, arcticDown: !arcticRes.ok };
 }
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
@@ -1208,14 +1208,16 @@ function usePaginatedFetch(type) {
     const [page, setPage] = useState(1);
     const [pageStack, setPageStack] = useState([]);
     const [storedFilters, setStoredFilters] = useState({});
+    const [arcticDown, setArcticDown] = useState(false);
 
     const _fetch = useCallback(async (username, pagination, filters) => {
         setLoading(true);
         setError(null);
         try {
-            const { items: data, sources: srcs } = await fetchBoth(username, type, pagination, filters);
+            const { items: data, sources: srcs, arcticDown: down } = await fetchBoth(username, type, pagination, filters);
             setItems(data);
             setSources(srcs);
+            setArcticDown(down);
             return data;
         } catch (err) {
             setError(err.message);
@@ -1261,7 +1263,7 @@ function usePaginatedFetch(type) {
         window.scrollTo({ top: 0, behavior: "smooth" });
     }, [_fetch, pageStack, storedFilters]);
 
-    return { items, sources, loading, error, page, reset, goNext, goPrev };
+    return { items, sources, loading, error, page, arcticDown, reset, goNext, goPrev };
 }
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
@@ -1284,8 +1286,18 @@ export default function App() {
     const [suggestionIdx, setSuggestionIdx] = useState(0);
     const EXAMPLE_USERS = ["spez", "GallowBoob", "Unidan", "kn0thing"];
 
+    const [arcticHealthDown, setArcticHealthDown] = useState(false);
+    const [bannerDismissed, setBannerDismissed] = useState(false);
+
     const posts = usePaginatedFetch("posts");
     const comments = usePaginatedFetch("comments");
+
+    const arcticIsDown = arcticHealthDown || posts.arcticDown || comments.arcticDown;
+
+    useEffect(() => {
+        safeFetch(`${ARCTIC}/api/posts/search?author=spez&limit=1`)
+            .then(({ ok }) => { if (!ok) setArcticHealthDown(true); });
+    }, []);
 
     useEffect(() => {
         document.title = searched && query
@@ -1456,6 +1468,19 @@ export default function App() {
             </header>
 
             <main>
+                {arcticIsDown && !bannerDismissed && (
+                    <div className="bg-amber-900/40 border-b border-amber-700/50 px-4 py-2 flex items-center justify-between gap-3">
+                        <p className="text-[12px] text-amber-300">
+                            <span className="font-semibold">Arctic Shift is currently unavailable.</span>
+                            {" "}Results are from PullPush only, which may be several months out of date.
+                        </p>
+                        <button onClick={() => setBannerDismissed(true)}
+                                aria-label="Dismiss"
+                                className="text-amber-500 hover:text-amber-300 flex-shrink-0 transition-colors text-lg leading-none">
+                            ×
+                        </button>
+                    </div>
+                )}
                 <div className={`max-w-3xl mx-auto px-4 transition-all duration-300 ${searched ? "pt-6" : "pt-20"}`}>
                     {!searched && (
                         <div className="text-center mb-2">
