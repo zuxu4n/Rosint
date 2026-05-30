@@ -55,22 +55,6 @@
             align-items: center;
             gap: 10px;
         }
-        @media (max-width: 768px) {
-            h1 { font-size: 36px; }
-            .powered { font-size: 28px; }
-            .top-right {
-                position: static;
-                text-align: left;
-                margin-top: 48px;
-            }
-            .side-panel {
-                position: static;
-                transform: none;
-                align-items: flex-start;
-                margin-top: 24px;
-                margin-bottom: 40px;
-            }
-        }
         .powered {
             font-size: 53px;
             font-weight: 600;
@@ -102,7 +86,7 @@
         .privacy-section h1 {
             font-size: 32px;
             color: #d7dadc;
-            margin-bottom: 18px;
+            margin-bottom: 8px;
         }
         .policy p {
             font-size: 15px;
@@ -136,12 +120,86 @@
             height: auto;
             margin-bottom: 24px;
         }
+        @media (max-width: 768px) {
+            h1 { font-size: 36px; }
+            .powered { font-size: 28px; }
+            .top-right {
+                position: static;
+                text-align: left;
+                margin-top: 48px;
+            }
+            .side-panel {
+                position: static;
+                transform: none;
+                align-items: flex-start;
+                margin-top: 24px;
+                margin-bottom: 40px;
+            }
+            .privacy-section h1 { font-size: 26px; }
+            .policy p,
+            .policy ul,
+            .policy li { font-size: 13px; }
+        }
+        .kofi-row {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+        .removal-link {
+            display: none;
+            color: #ff8c5a;
+            text-decoration: underline;
+            font-family: 'Times New Roman', Times, serif;
+            font-size: 16px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        @media (max-width: 768px) {
+            .removal-link { display: inline-block; }
+        }
+        @keyframes flashHighlight {
+            0%   { background-color: rgba(255, 140, 90, 0.55); }
+            100% { background-color: transparent; }
+        }
+        .flash-highlight {
+            animation: flashHighlight 1.2s ease-out;
+        }
     </style>
 </head>
 <body>
 
-<script type='text/javascript' src='https://storage.ko-fi.com/cdn/widget/Widget_2.js'></script>
-<script type='text/javascript'>kofiwidget2.init('Support me!', '#ed6023', 'V0C520357J');kofiwidget2.draw();</script>
+<div class="kofi-row">
+    <script type='text/javascript' src='https://storage.ko-fi.com/cdn/widget/Widget_2.js'></script>
+    <script type='text/javascript'>kofiwidget2.init('Support me!', '#ed6023', 'V0C520357J');kofiwidget2.draw();</script>
+    <a href="#removal-info" class="removal-link" onclick="scrollToRemoval(event)">Removal Requests</a>
+</div>
+
+<script type='text/javascript'>
+function scrollToRemoval(e) {
+    e.preventDefault();
+    var el = document.getElementById('removal-info');
+    if (!el) return;
+
+    var done = false;
+    function flash() {
+        if (done) return;            // only fire once per click
+        done = true;
+        window.removeEventListener('scrollend', flash);
+        el.classList.remove('flash-highlight');
+        void el.offsetWidth;          // restart animation if clicked again
+        el.classList.add('flash-highlight');
+        setTimeout(function () { el.classList.remove('flash-highlight'); }, 1200);
+    }
+
+    // Flash once the smooth scroll finishes so it's on-screen; fall back on a timer
+    // for browsers without the 'scrollend' event.
+    window.addEventListener('scrollend', flash);
+    setTimeout(flash, 800);
+
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+</script>
 
 <div class="privacy-section">
     <h1 id="privacy">Privacy</h1>
@@ -249,7 +307,7 @@
     <div class="credits">
         logo was inspired by <a href="https://searchcord.io" target="_blank" rel="noopener noreferrer">searchcord.io</a><br/>
         email me <a href="mailto:zuxu4n@proton.me">zuxu4n@proton.me</a>
-        <p style="margin-top:12px; max-width:440px; text-align:left;">
+        <p id="removal-info" style="margin-top:12px; max-width:440px; text-align:left;">
             For <strong style="color:#ff8c5a;">removal requests</strong>, you can send me an email. Note I am not obligated to remove anything especially since I do not store any Reddit Data. The databases have their own removal request services which you can find <a href="https://docs.google.com/forms/d/e/1FAIpQLSfzkmE8Bg6K_xii7aRm66ljzvo2tR59lTsdJ99acW4WX786Vw/viewform?usp=sf_link" target="_blank" rel="noopener noreferrer" style="color:#ff8c5a;">here</a> (ArcticShift) and <a href="https://removals.pullpush.io/index.php?a=add" target="_blank" rel="noopener noreferrer" style="color:#ff8c5a;">here</a> (PullPush.io). Nonetheless, I am still able to block a username from being searched on Rosint.dev.
         </p>
     </div>
