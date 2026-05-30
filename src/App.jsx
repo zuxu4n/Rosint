@@ -7,6 +7,21 @@ const PULLPUSH = "https://api.pullpush.io";
 const REDDIT_BASE = "https://www.reddit.com";
 const LIMIT = 100;
 
+// Usernames that have requested removal. Lowercase, no "u/" prefix.
+// Adding a name here makes the site refuse to query the archives for it.
+// SHA-256 hashes of removed usernames (lowercased, "u/" stripped).
+// Hashed so the names appear nowhere in the repo or the shipped bundle.
+const BLOCKED_HASHES = [
+    "42058cce1d67e7722fd7dee72f2bd85089cb1cb8df4e55fe239d4e2b51fcd50d",
+];
+async function isBlockedUser(name) {
+    const norm = String(name || "").trim().replace(/^u\//i, "").toLowerCase();
+    if (!norm) return false;
+    const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(norm));
+    const hex = [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+    return BLOCKED_HASHES.includes(hex);
+}
+
 function buildUrls(username, type, pagination = {}, dateFilters = {}) {
     const base = [
         `limit=${LIMIT}`,
@@ -68,13 +83,13 @@ function getPostThumbnail(post) {
             const src = post.preview.images[0].source?.url;
             if (src) return src.replace(/&amp;/g, "&");
         }
-    } catch (_) {}
+    } catch { /* ignore */ }
     try {
         if (post.media_metadata) {
             const first = Object.values(post.media_metadata)[0];
             if (first?.s?.u) return first.s.u.replace(/&amp;/g, "&");
         }
-    } catch (_) {}
+    } catch { /* ignore */ }
     const imageExts = ["jpg", "jpeg", "png", "gif"];
     if (post.url && imageExts.includes(post.url.split(".").pop()?.toLowerCase()))
         return post.url;
@@ -87,7 +102,7 @@ function getCommentImage(comment) {
             const first = Object.values(comment.media_metadata)[0];
             if (first?.s?.u) return first.s.u.replace(/&amp;/g, "&");
         }
-    } catch (_) {}
+    } catch { /* ignore */ }
     return null;
 }
 
@@ -317,7 +332,7 @@ function PostCard({ post, embedded = false }) {
             }
             setComments(list);
             setMoreComments(more);
-        } catch (_) {
+        } catch {
             setComments([]);
         }
         setCommentsLoading(false);
@@ -459,7 +474,7 @@ function ParentChain({ parentId }) {
             const res  = await fetch(`${ARCTIC}/api/comments/ids?ids=${parentId}`);
             const json = await res.json();
             if (json.data?.[0]) setComment(json.data[0]);
-        } catch (_) {}
+        } catch { /* ignore */ }
         setLoading(false);
     }
 
@@ -558,7 +573,7 @@ function CommentCard({ comment, isNested = false, skipPostLoad = false }) {
             }
             setReplies(children);
             setMoreCount(more);
-        } catch (_) {
+        } catch {
             setReplies([]);
         }
         setRepliesLoading(false);
@@ -1288,6 +1303,7 @@ export default function App() {
 
     const [arcticHealthDown, setArcticHealthDown] = useState(false);
     const [bannerDismissed, setBannerDismissed] = useState(false);
+    const [searchBlocked, setSearchBlocked] = useState(false);
 
     const posts = usePaginatedFetch("posts");
     const comments = usePaginatedFetch("comments");
@@ -1328,9 +1344,13 @@ export default function App() {
         setUsername(u);
         setQuery(u);
         setSearched(true);
-        setInitialLoading(true);
-        Promise.all([posts.reset(u, {}), comments.reset(u, {})]).then(() => {
-            setInitialLoading(false);
+        isBlockedUser(u).then((blocked) => {
+            if (blocked) { setSearchBlocked(true); return; }
+            setSearchBlocked(false);
+            setInitialLoading(true);
+            Promise.all([posts.reset(u, {}), comments.reset(u, {})]).then(() => {
+                setInitialLoading(false);
+            });
         });
     }, []);
 
@@ -1341,6 +1361,8 @@ export default function App() {
         setUsername(user);
         setQuery(user);
         setSearched(true);
+        if (await isBlockedUser(user)) { setSearchBlocked(true); return; }
+        setSearchBlocked(false);
         setInitialLoading(true);
         const filters = buildFilters();
         await Promise.all([posts.reset(user, filters), comments.reset(user, filters)]);
@@ -1594,7 +1616,20 @@ export default function App() {
 
                 {!searched && showGraphs && <GlobalChartsPanel compact={showAdvancedFilters} />}
 
-                {searched && (
+                {searched && searchBlocked && (
+                    <div className="max-w-3xl mx-auto px-4 mt-10 pb-16">
+                        <div className="border border-[#343536] bg-[#1a1a1b] rounded-md px-6 py-8 text-center">
+                            <p className="text-[#d7dadc] text-base font-medium mb-2">
+                                Results unavailable for u/{query}
+                            </p>
+                            <p className="text-[#818384] text-sm leading-relaxed">
+                                This username has been removed from search at the account holder's request.
+                            </p>
+                        </div>
+                    </div>
+                )}
+
+                {searched && !searchBlocked && (
                     <div className="max-w-3xl mx-auto px-4 mt-6 pb-16">
                         {!initialLoading && (
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
