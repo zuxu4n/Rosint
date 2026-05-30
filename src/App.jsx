@@ -14,8 +14,21 @@ const LIMIT = 100;
 const BLOCKED_HASHES = [
     "42058cce1d67e7722fd7dee72f2bd85089cb1cb8df4e55fe239d4e2b51fcd50d",
 ];
+// Strip anything users paste around a username: @, leading slashes, full
+// reddit URLs, and u/ /u/ user/ prefixes. Returns the bare username.
+function normalizeUsername(input) {
+    let s = String(input || "").trim();
+    // Full URL → keep only the path after the domain
+    s = s.replace(/^https?:\/\/(www\.|old\.|new\.)?reddit\.com/i, "");
+    // Leading slashes, then optional u/ /user/ prefix, then a leading @
+    s = s.replace(/^\/+/, "").replace(/^(u|user)\//i, "").replace(/^@/, "");
+    // Drop any trailing slash / query / whitespace
+    s = s.replace(/[\/?#].*$/, "").trim();
+    return s;
+}
+
 async function isBlockedUser(name) {
-    const norm = String(name || "").trim().replace(/^u\//i, "").toLowerCase();
+    const norm = normalizeUsername(name).toLowerCase();
     if (!norm) return false;
     const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(norm));
     const hex = [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
@@ -1339,7 +1352,7 @@ export default function App() {
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
-        const u = params.get("u")?.trim();
+        const u = normalizeUsername(params.get("u"));
         if (!u) return;
         setUsername(u);
         setQuery(u);
@@ -1354,7 +1367,9 @@ export default function App() {
         });
     }, []);
 
-    const searchUser = useCallback(async (user) => {
+    const searchUser = useCallback(async (rawUser) => {
+        const user = normalizeUsername(rawUser);
+        if (!user) return;
         const url = new URL(window.location.href);
         url.searchParams.set("u", user);
         window.history.pushState({}, "", url);
@@ -1475,9 +1490,9 @@ export default function App() {
                     </button>
                     <div className="flex-1 flex justify-end items-center gap-4">
                         <a href="/changelog.html" target="_blank" rel="noopener noreferrer"
-                           title="Docs"
+                           title="info"
                            className="text-[11px] text-[#818384] hover:text-[#d7dadc] border border-[#343536] hover:border-[#818384] rounded px-2.5 py-1 transition-colors">
-                            Docs
+                            info
                         </a>
                         <a href="https://github.com/zuxu4n/RedditOsint" target="_blank" rel="noopener noreferrer"
                            title="GitHub" className="text-[#818384] hover:text-white transition-colors">
