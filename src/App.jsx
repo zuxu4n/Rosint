@@ -13,6 +13,8 @@ const LIMIT = 100;
 // Hashed so the names appear nowhere in the repo or the shipped bundle.
 const BLOCKED_HASHES = [
     "42058cce1d67e7722fd7dee72f2bd85089cb1cb8df4e55fe239d4e2b51fcd50d",
+    "1c9f995e3296d29ac952119c7659d39c8cd94cae2d6361eefdfd6743512ca0fc",
+    "9567580b3cdba3341eb016d5c3c5466b587dccc7a3de4197b35a9362f74ada4b",
 ];
 // Strip anything users paste around a username: @, leading slashes, full
 // reddit URLs, and u/ /u/ user/ prefixes. Returns the bare username.
