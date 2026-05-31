@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>changelog</title>
     <link rel="icon" type="image/png" href="/dih.jpg" />
+    <script defer src="https://cloud.umami.is/script.js" data-website-id="291c6139-7c9d-4f99-974b-f196cd4f559a"></script>
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -77,16 +78,34 @@
         }
         .privacy-section {
             border: 1px solid #343536;
-            border-radius: 8px;
-            padding: 28px 32px;
+            border-radius: 0;
+            padding: 8px 12px;
             margin-top: 24px;
             margin-bottom: 40px;
             max-width: 760px;
         }
-        .privacy-section h1 {
+        .privacy-section > summary {
             font-size: 32px;
+            font-weight: 600;
             color: #d7dadc;
+            cursor: pointer;
+            list-style: none;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .privacy-section > summary::-webkit-details-marker { display: none; }
+        .privacy-section > summary::after {
+            content: '\25B8';
+            font-size: 22px;
+            line-height: 1;
+            transition: transform 0.2s ease;
+        }
+        .privacy-section[open] > summary {
             margin-bottom: 8px;
+        }
+        .privacy-section[open] > summary::after {
+            transform: rotate(90deg);
         }
         .policy p {
             font-size: 15px;
@@ -135,7 +154,7 @@
                 margin-top: 24px;
                 margin-bottom: 40px;
             }
-            .privacy-section h1 { font-size: 26px; }
+            .privacy-section > summary { font-size: 26px; }
             .policy p,
             .policy ul,
             .policy li { font-size: 13px; }
@@ -201,8 +220,8 @@ function scrollToRemoval(e) {
 }
 </script>
 
-<div class="privacy-section">
-    <h1 id="privacy">Privacy</h1>
+<details class="privacy-section">
+    <summary id="privacy">Privacy</summary>
 
     <div class="policy">
         <p class="effective">Effective: May 26, 2026</p>
@@ -213,13 +232,14 @@ function scrollToRemoval(e) {
         <ul>
             <li><strong>Google Analytics 4</strong>: cookies and visit metrics. See <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Google's privacy policy</a>.</li>
             <li><strong>Vercel Analytics</strong>: cookieless visit counts, plus standard server logs from Vercel hosting. See <a href="https://vercel.com/legal/privacy-policy" target="_blank" rel="noopener noreferrer">Vercel's privacy policy</a>.</li>
+            <li><strong>Umami</strong>: privacy-friendly, cookieless analytics — aggregate page views only, no personal data or cross-site tracking. See <a href="https://umami.is/privacy" target="_blank" rel="noopener noreferrer">Umami's privacy policy</a>.</li>
         </ul>
 
         <p><strong>When you search:</strong> your browser sends the query directly to <a href="https://arctic-shift.photon-reddit.com" target="_blank" rel="noopener noreferrer">Arctic Shift</a> and <a href="https://pullpush.io" target="_blank" rel="noopener noreferrer">PullPush</a>. These requests do not pass through our server. Arctic Shift does not publish a privacy policy. By searching, you accept that.</p>
 
         <p><strong>Your rights</strong> (PIPEDA, GDPR, Quebec Law 25, and similar): access, correction, deletion, or complaint to a regulator. Contact: <a href="mailto:zuxu4n@proton.me">zuxu4n@proton.me</a>.</p>
     </div>
-</div>
+</details>
 
 <img id="changelog" src="/updatesnstuff.png" alt="Updates n Stuff" class="updates-title" />
 
