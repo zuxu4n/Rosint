@@ -80,7 +80,7 @@ function buildUrls(username, type, pagination = {}, dateFilters = {}) {
     };
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Helpers ───────
 
 function timeAgo(utc) {
     const s = Math.floor(Date.now() / 1000 - utc);
