@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, Component } from "react";
 
 // ─── API Config ───────────────────────────────────────────────────────────────
 
@@ -16,7 +16,13 @@ const BLOCKED_HASHES = [
     "1c9f995e3296d29ac952119c7659d39c8cd94cae2d6361eefdfd6743512ca0fc",
     "9567580b3cdba3341eb016d5c3c5466b587dccc7a3de4197b35a9362f74ada4b",
     "5b90dd4eca41403b8954709c286127f76f6d56aaf235db020ebba53a11fc0132",
-    "4ffd5cbb86357bcfae141ac6e4859cdd9985dad3116c22feb30e486ae4d379d2"
+    "4ffd5cbb86357bcfae141ac6e4859cdd9985dad3116c22feb30e486ae4d379d2",
+    "8bd59e71d4a48c92f73d33cfb78ef5a269522357c0588b4b9445d47aaca52405",
+    "befeee5eb1aa53a7666aa62c188fc035965b2bc925551a7fdc861c8d3674413c",
+    "c933d8feb334e3ff853181b9b81e887555d3b9ce35542e9413f99255fda5c92a",
+    "b8d2f2804ee639cb85854c23f923c62e9885c109de66f38ba54defdfb6e1660c",
+    "af73b329e7b4d79252e07829c5a9634d3d48e199a306bff3e6904e9588a29a1e",
+    "d8d0d3a78028ae99d6cc5cf98c846332daeb9865fd1d54f3deee135844a67d5d"
 ];
 // Strip anything users paste around a username: @, leading slashes, full
 // reddit URLs, and u/ /u/ user/ prefixes. Returns the bare username.
@@ -322,6 +328,26 @@ const AnimeFace = () => (
     </svg>
 );
 
+// ─── Error Boundary ───────────────────────────────────────────────────────────
+// Wraps each result card so one malformed archive record (e.g. a comment with a
+// numeric parent_id) can't crash the whole page — it renders a fallback instead.
+
+class CardBoundary extends Component {
+    state = { failed: false };
+    static getDerivedStateFromError() { return { failed: true }; }
+    componentDidCatch() { /* swallow — bad record, nothing to recover */ }
+    render() {
+        if (this.state.failed) {
+            return (
+                <div className="bg-[#1a1a1b] border border-[#343536] rounded px-3 py-2.5 text-[12px] text-[#818384] italic">
+                    This item couldn't be displayed.
+                </div>
+            );
+        }
+        return this.props.children;
+    }
+}
+
 // ─── Post Card ────────────────────────────────────────────────────────────────
 
 function PostCard({ post, embedded = false }) {
@@ -482,7 +508,7 @@ function ParentChain({ parentId }) {
     const [comment, setComment] = useState(null);
     const [loading, setLoading] = useState(false);
 
-    if (!parentId?.startsWith("t1_")) return null;
+    if (typeof parentId !== "string" || !parentId.startsWith("t1_")) return null;
 
     async function handleLoad() {
         if (loading || comment) return;
@@ -1771,7 +1797,9 @@ export default function App() {
                                                     (b.score ?? 0) - (a.score ?? 0)
                                         )
                                         .map((post) => (
-                                            <PostCard key={post.id} post={post} />
+                                            <CardBoundary key={post.id}>
+                                                <PostCard post={post} />
+                                            </CardBoundary>
                                         ))}
                                     {activeTab === "comments" && [...comments.items]
                                         .sort((a, b) =>
@@ -1780,7 +1808,9 @@ export default function App() {
                                                     (b.score ?? 0) - (a.score ?? 0)
                                         )
                                         .map((comment) => (
-                                            <CommentCard key={comment.id} comment={comment} />
+                                            <CardBoundary key={comment.id}>
+                                                <CommentCard comment={comment} />
+                                            </CardBoundary>
                                         ))}
                                 </div>
                                 <Pagination
