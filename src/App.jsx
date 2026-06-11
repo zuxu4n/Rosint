@@ -22,7 +22,10 @@ const BLOCKED_HASHES = [
     "c933d8feb334e3ff853181b9b81e887555d3b9ce35542e9413f99255fda5c92a",
     "b8d2f2804ee639cb85854c23f923c62e9885c109de66f38ba54defdfb6e1660c",
     "af73b329e7b4d79252e07829c5a9634d3d48e199a306bff3e6904e9588a29a1e",
-    "d8d0d3a78028ae99d6cc5cf98c846332daeb9865fd1d54f3deee135844a67d5d"
+    "d8d0d3a78028ae99d6cc5cf98c846332daeb9865fd1d54f3deee135844a67d5d",
+    "bec537572fbafac5d44dfb065d815ebd4d21861e93587c358e75b0d2ef8dbba6",
+    "6843a247d6e88907a31dbe2db49679744c8d3caff7e231755a729efa91260459",
+    "ea6ec2f9cdd875c498a3e383e85c604eee86a92d9bde5389de63509e29f8b6a1"
 ];
 // Strip anything users paste around a username: @, leading slashes, full
 // reddit URLs, and u/ /u/ user/ prefixes. Returns the bare username.
@@ -437,7 +440,12 @@ function PostCard({ post, embedded = false }) {
                                     </div>
                                 </div>
                                 {thumb && (
-                                    <div className="flex-shrink-0 w-[70px] h-[52px] rounded overflow-hidden bg-[#272729]">
+                                    <div
+                                        role="button"
+                                        tabIndex={0}
+                                        title="Open image in new tab"
+                                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); window.open(thumb, "_blank", "noopener,noreferrer"); }}
+                                        className="flex-shrink-0 w-[70px] h-[52px] rounded overflow-hidden bg-[#272729] cursor-zoom-in">
                                         <img src={thumb} alt="" width="70" height="52" className="w-full h-full object-cover" loading="lazy"
                                              onError={(e) => { e.target.style.display = "none"; }} />
                                     </div>
@@ -693,10 +701,12 @@ function CommentCard({ comment, isNested = false, skipPostLoad = false }) {
                                 {comment.body || "(no content)"}
                             </p>
                             {img && (
-                                <div className="mt-2 w-24 h-16 rounded overflow-hidden bg-[#272729]">
+                                <a href={img} target="_blank" rel="noopener noreferrer"
+                                   title="Open image in new tab"
+                                   className="mt-2 block w-24 h-16 rounded overflow-hidden bg-[#272729] cursor-zoom-in">
                                     <img src={img} alt="" width="96" height="64" className="w-full h-full object-cover" loading="lazy"
                                          onError={(e) => { e.target.style.display = "none"; }} />
-                                </div>
+                                </a>
                             )}
                         </>
                     )}
