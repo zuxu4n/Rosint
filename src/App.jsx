@@ -25,7 +25,8 @@ const BLOCKED_HASHES = [
     "d8d0d3a78028ae99d6cc5cf98c846332daeb9865fd1d54f3deee135844a67d5d",
     "bec537572fbafac5d44dfb065d815ebd4d21861e93587c358e75b0d2ef8dbba6",
     "6843a247d6e88907a31dbe2db49679744c8d3caff7e231755a729efa91260459",
-    "ea6ec2f9cdd875c498a3e383e85c604eee86a92d9bde5389de63509e29f8b6a1"
+    "ea6ec2f9cdd875c498a3e383e85c604eee86a92d9bde5389de63509e29f8b6a1",
+    "583be79a3d8aee4309ba3d41d01422159077cc8aae9de40595c1f2831a38f8da"
 ];
 // Strip anything users paste around a username: @, leading slashes, full
 // reddit URLs, and u/ /u/ user/ prefixes. Returns the bare username.
