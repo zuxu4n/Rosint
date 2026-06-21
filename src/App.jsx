@@ -1557,7 +1557,7 @@ export default function App() {
     const posts = usePaginatedFetch("posts");
     const comments = usePaginatedFetch("comments");
 
-    const arcticIsDown = true; // FAKE TEST — force Arctic Shift down (revert me)
+    const arcticIsDown = arcticHealthDown || posts.arcticDown || comments.arcticDown;
 
     useEffect(() => {
         safeFetch(`${ARCTIC}/api/posts/search?author=spez&limit=1`)
