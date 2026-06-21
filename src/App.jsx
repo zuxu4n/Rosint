@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo, Component } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef, Component } from "react";
 
 // ─── API Config ───────────────────────────────────────────────────────────────
 
@@ -12,21 +12,30 @@ const LIMIT = 100;
 // SHA-256 hashes of removed usernames (lowercased, "u/" stripped).
 // Hashed so the names appear nowhere in the repo or the shipped bundle.
 const BLOCKED_HASHES = [
-    "42058cce1d67e7722fd7dee72f2bd85089cb1cb8df4e55fe239d4e2b51fcd50d",
-    "1c9f995e3296d29ac952119c7659d39c8cd94cae2d6361eefdfd6743512ca0fc",
-    "9567580b3cdba3341eb016d5c3c5466b587dccc7a3de4197b35a9362f74ada4b",
-    "5b90dd4eca41403b8954709c286127f76f6d56aaf235db020ebba53a11fc0132",
-    "4ffd5cbb86357bcfae141ac6e4859cdd9985dad3116c22feb30e486ae4d379d2",
     "8bd59e71d4a48c92f73d33cfb78ef5a269522357c0588b4b9445d47aaca52405",
-    "befeee5eb1aa53a7666aa62c188fc035965b2bc925551a7fdc861c8d3674413c",
-    "c933d8feb334e3ff853181b9b81e887555d3b9ce35542e9413f99255fda5c92a",
     "b8d2f2804ee639cb85854c23f923c62e9885c109de66f38ba54defdfb6e1660c",
-    "af73b329e7b4d79252e07829c5a9634d3d48e199a306bff3e6904e9588a29a1e",
-    "d8d0d3a78028ae99d6cc5cf98c846332daeb9865fd1d54f3deee135844a67d5d",
+    "583be79a3d8aee4309ba3d41d01422159077cc8aae9de40595c1f2831a38f8da",
     "bec537572fbafac5d44dfb065d815ebd4d21861e93587c358e75b0d2ef8dbba6",
-    "6843a247d6e88907a31dbe2db49679744c8d3caff7e231755a729efa91260459",
-    "ea6ec2f9cdd875c498a3e383e85c604eee86a92d9bde5389de63509e29f8b6a1",
-    "583be79a3d8aee4309ba3d41d01422159077cc8aae9de40595c1f2831a38f8da"
+    "af73b329e7b4d79252e07829c5a9634d3d48e199a306bff3e6904e9588a29a1e",
+    "7d63776df7e0f3f0b2887c712f06c6ef2ec232f24dee686d0af3e0b9664acb89",
+    "13cdc20417809368f182116d8003c138f44dbf58f8a8f95fe4b8375613246313",
+    "7ffb36a07c0c8505032b119f0db6cc1851dbbfac30f8aefd3702b58d160c9d3f",
+    "f677d7f57fd90e759d40372ff796563d240c184be9cf3676c820dd1cf5a17461",
+    "7d42355a149b227b525a246d624bdf4351f3059d457095077372a8b64b0609b7",
+    "dd3e1d8fc94877e1970764a7075c1616c6bd02f480e7b4c2e63ac4f00364f925",
+    "ae27b421885247f764ee8753cf7c3e3a3b1c1963618a27a18683347766255e94",
+    "23619d18b6f19ec12fd864c23c4d0ffc1214c25b5a55ec5998ddc6ddeef9df47",
+    "93b378a0b8911af4d5395bb88ddcfbc81f76cc6e8c40defabdcc145e2d022c88",
+    "040cff49d19c5134ccc4cb1a239e199f188a46c42d5cc3e594f7ca7d003daf2e",
+    "17a2b6d95d245f38b387b2e7131af50f39f88943fdec91940038ed4f5f5eb3fb",
+    "2a4c3a5844c8689713583c6af2df8f257b9d17e718dfefa060043799e6e45e17",
+    "29a1c927cf8f595f9adb6551c6cb633c0bf0024541459f73db99a295e5e99e24",
+    "084d1c94a29de378aa8490e420dff45c429a48493eb7a975a70bddcc32003526",
+    "79d21778a44478aa491753befc4fd8f170e1e4b66123549481a7f984caa0ce8d",
+    "da0d42d0b53e491d1c0acf8480f8d73ac4b264ae6b7cdf08f59bab1afb39dc02",
+    "5b90dd4eca41403b8954709c286127f76f6d56aaf235db020ebba53a11fc0132",
+    "d8d0d3a78028ae99d6cc5cf98c846332daeb9865fd1d54f3deee135844a67d5d",
+    "4ffd5cbb86357bcfae141ac6e4859cdd9985dad3116c22feb30e486ae4d379d2"
 ];
 // Strip anything users paste around a username: @, leading slashes, full
 // reddit URLs, and u/ /u/ user/ prefixes. Returns the bare username.
@@ -1335,6 +1344,188 @@ function usePaginatedFetch(type) {
     return { items, sources, loading, error, page, arcticDown, reset, goNext, goPrev };
 }
 
+// ─── Dino Game (shown during maintenance) ──────────────────────────────────────
+
+function DinoGame() {
+    const canvasRef = useRef(null);
+
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext("2d");
+        const W = canvas.width;
+        const H = canvas.height;
+        const GROUND_Y = H - 22;
+        const BG = "#1a1a1b";
+        const FG = "#ff4500";
+        const MUTED = "#818384";
+
+        let state = "ready"; // ready | running | over
+        const dino = { x: 28, w: 22, h: 26, y: GROUND_Y - 26, vy: 0, onGround: true };
+        let obstacles = [];
+        let speed = 5;
+        let score = 0;
+        let hi = Number(localStorage.getItem("dinoHi") || 0);
+        let spawnIn = 60;
+        let legFrame = 0;
+        let raf;
+
+        function resetGame() {
+            dino.y = GROUND_Y - dino.h;
+            dino.vy = 0;
+            dino.onGround = true;
+            obstacles = [];
+            speed = 5;
+            score = 0;
+            spawnIn = 60;
+            legFrame = 0;
+        }
+
+        function jump() {
+            if (state === "ready") { state = "running"; dino.vy = -13; dino.onGround = false; return; }
+            if (state === "over") { resetGame(); state = "running"; return; }
+            if (state === "running" && dino.onGround) { dino.vy = -13; dino.onGround = false; }
+        }
+
+        function spawn() {
+            const h = 18 + Math.random() * 22;
+            const w = 10 + Math.random() * 12;
+            obstacles.push({ x: W + 10, y: GROUND_Y - h, w, h });
+        }
+
+        function drawDino() {
+            const { x, y, w, h } = dino;
+            ctx.fillStyle = FG;
+            ctx.fillRect(x, y + 4, w - 8, h - 8);          // torso
+            ctx.fillRect(x + w - 9, y, 9, 10);             // head
+            ctx.fillRect(x - 3, y + 6, 4, 5);              // tail
+            // legs
+            ctx.fillRect(x + 2, y + h - 4, 3, 4);
+            ctx.fillRect(x + w - 13, y + h - 4, 3, 4);
+            if (state === "running" && dino.onGround) {
+                const step = Math.floor(legFrame / 6) % 2;
+                ctx.fillStyle = BG;
+                if (step === 0) ctx.fillRect(x + 2, y + h - 4, 3, 4);
+                else ctx.fillRect(x + w - 13, y + h - 4, 3, 4);
+                ctx.fillStyle = FG;
+            }
+            // eye
+            ctx.fillStyle = BG;
+            ctx.fillRect(x + w - 4, y + 2, 2, 2);
+            ctx.fillStyle = FG;
+        }
+
+        function drawCactus(o) {
+            ctx.fillStyle = FG;
+            ctx.fillRect(o.x + o.w / 2 - 2, o.y, 4, o.h);          // stem
+            ctx.fillRect(o.x, o.y + o.h * 0.35, 3, o.h * 0.4);     // left arm
+            ctx.fillRect(o.x + o.w - 3, o.y + o.h * 0.25, 3, o.h * 0.4); // right arm
+        }
+
+        function tick() {
+            ctx.clearRect(0, 0, W, H);
+            ctx.fillStyle = BG;
+            ctx.fillRect(0, 0, W, H);
+
+            // ground
+            ctx.strokeStyle = MUTED;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(0, GROUND_Y + 0.5);
+            ctx.lineTo(W, GROUND_Y + 0.5);
+            ctx.stroke();
+
+            if (state === "running") {
+                dino.vy += 0.95;
+                dino.y += dino.vy;
+                if (dino.y >= GROUND_Y - dino.h) { dino.y = GROUND_Y - dino.h; dino.vy = 0; dino.onGround = true; }
+
+                spawnIn--;
+                if (spawnIn <= 0) { spawn(); spawnIn = Math.max(45, 95 - speed * 3) + Math.random() * 45; }
+                obstacles.forEach((o) => { o.x -= speed; });
+                obstacles = obstacles.filter((o) => o.x + o.w > 0);
+
+                for (const o of obstacles) {
+                    if (dino.x < o.x + o.w && dino.x + dino.w > o.x &&
+                        dino.y < o.y + o.h && dino.y + dino.h > o.y) {
+                        state = "over";
+                        if (score > hi) { hi = Math.floor(score); localStorage.setItem("dinoHi", String(hi)); }
+                    }
+                }
+
+                score += 0.15;
+                speed = Math.min(18, speed + 0.006);
+                legFrame++;
+            }
+
+            drawDino();
+            obstacles.forEach(drawCactus);
+
+            // score
+            ctx.fillStyle = MUTED;
+            ctx.font = "12px monospace";
+            ctx.textAlign = "right";
+            ctx.fillText(`HI ${String(Math.floor(hi)).padStart(5, "0")}  ${String(Math.floor(score)).padStart(5, "0")}`, W - 8, 16);
+            ctx.textAlign = "left";
+
+            if (state === "ready") {
+                ctx.fillStyle = MUTED;
+                ctx.font = "12px monospace";
+                ctx.textAlign = "center";
+                ctx.fillText("Press Space or tap to play", W / 2, H / 2);
+                ctx.textAlign = "left";
+            }
+            if (state === "over") {
+                ctx.fillStyle = FG;
+                ctx.font = "bold 14px monospace";
+                ctx.textAlign = "center";
+                ctx.fillText("G A M E   O V E R", W / 2, H / 2 - 4);
+                ctx.fillStyle = MUTED;
+                ctx.font = "11px monospace";
+                ctx.fillText("Press Space or tap to restart", W / 2, H / 2 + 14);
+                ctx.textAlign = "left";
+            }
+
+            raf = requestAnimationFrame(tick);
+        }
+
+        function onKey(e) {
+            const tag = e.target && e.target.tagName;
+            if (tag === "INPUT" || tag === "TEXTAREA") return; // don't hijack the search bar
+            if (e.code === "Space" || e.code === "ArrowUp") { e.preventDefault(); jump(); }
+        }
+        function onPointer(e) {
+            e.preventDefault();
+            if (document.activeElement && document.activeElement !== canvas) document.activeElement.blur();
+            canvas.focus();
+            jump();
+        }
+
+        window.addEventListener("keydown", onKey);
+        canvas.addEventListener("pointerdown", onPointer);
+        raf = requestAnimationFrame(tick);
+
+        return () => {
+            cancelAnimationFrame(raf);
+            window.removeEventListener("keydown", onKey);
+            canvas.removeEventListener("pointerdown", onPointer);
+        };
+    }, []);
+
+    return (
+        <div className="mt-6 text-center">
+            <p className="text-[#818384] text-xs mb-2">Bored while you wait? Press Space or tap to jump.</p>
+            <canvas
+                ref={canvasRef}
+                width={600}
+                height={240}
+                tabIndex={0}
+                className="w-full max-w-md mx-auto rounded-lg border border-[#343536] cursor-pointer touch-none select-none focus:outline-none focus:border-[#ff4500]"
+            />
+        </div>
+    );
+}
+
 // ─── Main App ─────────────────────────────────────────────────────────────────
 
 const TABS = ["posts", "comments"];
@@ -1362,7 +1553,7 @@ export default function App() {
     const posts = usePaginatedFetch("posts");
     const comments = usePaginatedFetch("comments");
 
-    const arcticIsDown = arcticHealthDown || posts.arcticDown || comments.arcticDown;
+    const arcticIsDown = true; // FAKE TEST — force Arctic Shift down (revert me)
 
     useEffect(() => {
         safeFetch(`${ARCTIC}/api/posts/search?author=spez&limit=1`)
@@ -1546,11 +1737,11 @@ export default function App() {
             </header>
 
             <main>
-                {arcticIsDown && !bannerDismissed && (
+                {arcticIsDown && !bannerDismissed && !searched && (
                     <div className="bg-amber-900/40 border-b border-amber-700/50 px-4 py-2 flex items-center justify-between gap-3">
                         <p className="text-[12px] text-amber-300">
-                            <span className="font-semibold">Arctic Shift is currently unavailable.</span>
-                            {" "}Results are from PullPush only, which may be several months out of date.
+                            <span className="font-semibold">The server is currently under maintenance.</span>
+                            {" "}It will be back within a few hours.
                         </p>
                         <button onClick={() => setBannerDismissed(true)}
                                 aria-label="Dismiss"
@@ -1685,7 +1876,21 @@ export default function App() {
                     </div>
                 )}
 
-                {searched && !searchBlocked && (
+                {searched && !searchBlocked && arcticIsDown && (
+                    <div className="max-w-md mx-auto px-4 mt-12 pb-16">
+                        <div className="border border-[#3a3320] bg-[#1a1a1b] rounded-xl px-7 pt-10 pb-5 text-center shadow-lg shadow-black/30">
+                            <p className="text-[#f3f4f3] text-lg font-semibold mb-2">
+                                We'll be right back!
+                            </p>
+                            <p className="text-[#a8a8a9] text-sm leading-relaxed">
+                                The server is taking a quick maintenance break. Search should be back up within a few hours, so feel free to check in again a little later.
+                            </p>
+                            <DinoGame />
+                        </div>
+                    </div>
+                )}
+
+                {searched && !searchBlocked && !arcticIsDown && (
                     <div className="max-w-3xl mx-auto px-4 mt-6 pb-16">
                         {!initialLoading && (
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
