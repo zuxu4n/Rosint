@@ -91,6 +91,11 @@ function buildUrls(username, type, pagination = {}, dateFilters = {}) {
         base.push(`subreddit=${encodeURIComponent(dateFilters.subreddit)}`);
     }
 
+    // NSFW is a post-only field; Arctic Shift honors over_18 server-side.
+    if (type === "posts" && dateFilters.over18 != null) {
+        base.push(`over_18=${dateFilters.over18}`);
+    }
+
     if (pagination.before) {
         base.push(`before=${pagination.before}`);
     } else if (dateFilters.dateTo) {
@@ -287,8 +292,15 @@ async function fetchBoth(username, type, pagination = {}, dateFilters = {}) {
         }
     });
 
-    merged.sort((a, b) => b.created_utc - a.created_utc);
-    return { items: merged, sources, arcticDown: !arcticRes.ok };
+    // PullPush ignores the over_18 param, so filter NSFW client-side (posts only;
+    // comments have no over_18 field). Arctic results already match — harmless here.
+    let result = merged;
+    if (type === "posts" && dateFilters.over18 != null) {
+        result = result.filter((p) => p.over_18 === dateFilters.over18);
+    }
+
+    result.sort((a, b) => b.created_utc - a.created_utc);
+    return { items: result, sources, arcticDown: !arcticRes.ok };
 }
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
@@ -1561,6 +1573,7 @@ export default function App() {
     const [dateFrom, setDateFrom] = useState("");
     const [dateTo, setDateTo] = useState("");
     const [subreddit, setSubreddit] = useState("");
+    const [showNsfw, setShowNsfw] = useState(true); // checked = show NSFW (no filter); unchecked = exclude NSFW
     const [appliedSubreddit, setAppliedSubreddit] = useState("");
     const [sortOrder, setSortOrder] = useState("desc");
     const [showGraphs, setShowGraphs] = useState(false);
@@ -1599,10 +1612,11 @@ export default function App() {
         if (dateFrom) f.dateFrom = Math.floor(new Date(dateFrom).getTime() / 1000);
         if (dateTo) f.dateTo = Math.floor(new Date(dateTo).getTime() / 1000);
         if (subreddit.trim()) f.subreddit = subreddit.trim();
+        if (!showNsfw) f.over18 = false;
         return f;
-    }, [dateFrom, dateTo, subreddit]);
+    }, [dateFrom, dateTo, subreddit, showNsfw]);
 
-    const hasFilters = dateFrom || dateTo || subreddit.trim();
+    const hasFilters = dateFrom || dateTo || subreddit.trim() || !showNsfw;
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -1658,6 +1672,7 @@ export default function App() {
         setDateFrom("");
         setDateTo("");
         setSubreddit("");
+        setShowNsfw(true);
         setAppliedSubreddit("");
         if (!query) return;
         setInitialLoading(true);
@@ -1729,7 +1744,7 @@ export default function App() {
                 <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
                     <button
                         aria-label="Go to homepage"
-                        onClick={() => { setSearched(false); setUsername(""); setQuery(""); setDateFrom(""); setDateTo(""); setSubreddit(""); window.history.pushState({}, "", "/"); }}
+                        onClick={() => { setSearched(false); setUsername(""); setQuery(""); setDateFrom(""); setDateTo(""); setSubreddit(""); setShowNsfw(true); window.history.pushState({}, "", "/"); }}
                         className="logo-btn group flex items-center gap-2 relative"
                     >
                         <picture>
@@ -1870,13 +1885,16 @@ export default function App() {
                                             />
                                         </div>
                                         </div>
+                                        <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                                            <input
+                                                type="checkbox"
+                                                checked={showNsfw}
+                                                onChange={(e) => setShowNsfw(e.target.checked)}
+                                                className="w-3.5 h-3.5 accent-[#ff4500] cursor-pointer"
+                                            />
+                                            <span className="text-[11px] text-[#818384]">Show NSFW</span>
+                                        </label>
                                     </div>
-                                    {hasFilters && (
-                                        <button type="button" onClick={() => { setDateFrom(""); setDateTo(""); setSubreddit(""); }}
-                                                className="w-fit px-3 py-1 text-[12px] text-[#818384] hover:text-[#d7dadc] transition-colors">
-                                            Clear
-                                        </button>
-                                    )}
                                 </div>
                             )}
                         </div>
