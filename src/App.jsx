@@ -141,6 +141,13 @@ function fmtNum(n) {
     return String(n);
 }
 
+function fmtBig(n) {
+    if (n == null) return null;
+    if (Math.abs(n) >= 1e6) return `${(n / 1e6).toFixed(1)}m`;
+    if (Math.abs(n) >= 1000) return `${(n / 1000).toFixed(1)}k`;
+    return String(n);
+}
+
 function getPostThumbnail(post) {
     try {
         if (post.preview?.images?.length) {
@@ -396,6 +403,55 @@ class CardBoundary extends Component {
     }
 }
 
+// ─── Status badges ────────────────────────────────────────────────────────────
+// The reason people use an archive: seeing at a glance whether content was
+// removed by a moderator vs deleted by its author, plus NSFW / distinguished
+// (admin, mod) markers. Drives both the badge row and the card's border tint.
+
+function getStatus(item, type) {
+    const text = type === "posts" ? item.selftext : item.body;
+    return {
+        removed: text === "[removed]" || (type === "posts" && !!item.removed_by_category),
+        deleted: text === "[deleted]" || item.author === "[deleted]",
+    };
+}
+
+// Border color for a card, tinted red when mod-removed and amber when
+// author-deleted so scanning a long list surfaces the interesting rows.
+function statusBorderBase({ removed, deleted }) {
+    if (removed) return "border-[#4a2626]";
+    if (deleted) return "border-[#41371f]";
+    return "border-[#343536]";
+}
+function statusBorderHover({ removed, deleted }) {
+    if (removed) return "hover:border-[#6e3838]";
+    if (deleted) return "hover:border-[#5f4f28]";
+    return "hover:border-[#818384]";
+}
+function statusBorder(status) {
+    return `${statusBorderBase(status)} ${statusBorderHover(status)}`;
+}
+
+const BADGE = "inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide leading-none";
+
+function StatusBadges({ item, type }) {
+    const { removed, deleted } = getStatus(item, type);
+    const dist = item.distinguished;
+    if (!removed && !deleted && !item.over_18 && !item.spoiler && dist !== "admin" && dist !== "moderator") {
+        return null;
+    }
+    return (
+        <>
+            {removed && <span className={`${BADGE} bg-[#3a1a1a] text-[#f4776b] border border-[#5a2626]`}>Removed</span>}
+            {deleted && <span className={`${BADGE} bg-[#2c2620] text-[#d6a35c] border border-[#4a3d29]`}>Deleted</span>}
+            {item.over_18 && <span className={`${BADGE} bg-[#3a1420] text-[#ff5c8a] border border-[#5a2038]`}>NSFW</span>}
+            {item.spoiler && <span className={`${BADGE} bg-[#272729] text-[#a8a8a9] border border-[#3a3a3b]`}>Spoiler</span>}
+            {dist === "admin" && <span className={`${BADGE} bg-[#3a1400] text-[#ff6a33] border border-[#5a2810]`}>Admin</span>}
+            {dist === "moderator" && <span className={`${BADGE} bg-[#12312f] text-[#4fbdba] border border-[#1d4d4a]`}>Mod</span>}
+        </>
+    );
+}
+
 // ─── Post Card ────────────────────────────────────────────────────────────────
 
 function PostCard({ post, embedded = false }) {
@@ -407,6 +463,7 @@ function PostCard({ post, embedded = false }) {
     const thumb   = getPostThumbnail(post);
     const postUrl = `${REDDIT_BASE}${post.permalink}`;
     const hasBody = post.selftext && post.selftext !== "[deleted]" && post.selftext !== "[removed]";
+    const status  = getStatus(post, "posts");
 
     async function handleLoadComments() {
         if (commentsLoading) return;
@@ -431,7 +488,7 @@ function PostCard({ post, embedded = false }) {
 
     return (
         <>
-            <div className="bg-[#1a1a1b] border border-[#343536] rounded overflow-hidden hover:border-[#818384] transition-all duration-150 hover:shadow-lg group">
+            <div className={`bg-[#1a1a1b] border ${statusBorder(status)} rounded overflow-hidden transition-all duration-150 hover:shadow-lg group`}>
                 <a href={postUrl} target="_blank" rel="noopener noreferrer" className="block">
                     <div className="flex">
                         <div className="flex flex-col items-center justify-start gap-1 px-2.5 py-3 bg-[#161617] min-w-[44px]">
@@ -445,6 +502,7 @@ function PostCard({ post, embedded = false }) {
                                         <span className="font-medium text-[#d7dadc]">{post.subreddit_name_prefixed}</span>
                                         <span>·</span>
                                         <span>{timeAgo(post.created_utc)}</span>
+                                        <StatusBadges item={post} type="posts" />
                                         {post.link_flair_text && (
                                             <>
                                                 <span>·</span>
@@ -639,6 +697,7 @@ function CommentCard({ comment, isNested = false, skipPostLoad = false }) {
     const url       = `${REDDIT_BASE}${comment.permalink}`;
     const threadUrl = threadId ? `${REDDIT_BASE}/comments/${threadId}` : url;
     const img       = getCommentImage(comment);
+    const status    = getStatus(comment, "comments");
 
     useEffect(() => {
         if (!threadId || isNested || skipPostLoad) return;
@@ -676,7 +735,7 @@ function CommentCard({ comment, isNested = false, skipPostLoad = false }) {
     }
 
     return (
-        <div className={`bg-[#1a1a1b] border border-[#343536] rounded overflow-hidden transition-all duration-150 ${!isNested ? "hover:border-[#818384] hover:shadow-lg" : ""}`}>
+        <div className={`bg-[#1a1a1b] border ${statusBorderBase(status)} rounded overflow-hidden transition-all duration-150 ${!isNested ? `${statusBorderHover(status)} hover:shadow-lg` : ""}`}>
 
             {/* ── Parent post shown after auto-loading ── */}
             {post && (
@@ -727,6 +786,7 @@ function CommentCard({ comment, isNested = false, skipPostLoad = false }) {
                         </a>
                         <span>·</span>
                         <span>{timeAgo(comment.created_utc)}</span>
+                        <StatusBadges item={comment} type="comments" />
                         <span>·</span>
                         <a href={threadUrl} target="_blank" rel="noopener noreferrer"
                            className="text-[#4fbdba] hover:underline flex items-center gap-0.5">
@@ -742,9 +802,17 @@ function CommentCard({ comment, isNested = false, skipPostLoad = false }) {
                     {/* Body — hidden when collapsed */}
                     {!collapsed && (
                         <>
-                            <p className="text-sm text-[#d7dadc] leading-relaxed whitespace-pre-wrap break-words">
-                                {comment.body || "(no content)"}
-                            </p>
+                            {status.removed || status.deleted ? (
+                                <p className="text-sm text-[#6f7071] italic leading-relaxed">
+                                    {status.removed
+                                        ? "This comment was removed by a moderator — the archive captured no text."
+                                        : "This comment was deleted by its author — the archive captured no text."}
+                                </p>
+                            ) : (
+                                <p className="text-sm text-[#d7dadc] leading-relaxed whitespace-pre-wrap break-words">
+                                    {comment.body || "(no content)"}
+                                </p>
+                            )}
                             {img && (
                                 <a href={img} target="_blank" rel="noopener noreferrer"
                                    title="Open image in new tab"
@@ -838,6 +906,49 @@ function CommentCard({ comment, isNested = false, skipPostLoad = false }) {
                         </div>
                     )}
                 </>
+            )}
+        </div>
+    );
+}
+
+// ─── User Summary ─────────────────────────────────────────────────────────────
+// Archive-wide stats for the searched account (totals, karma, first activity)
+// from Arctic Shift. Renders nothing until data arrives and hides entirely on
+// error/rate-limit — the search results never depend on it.
+
+function UserSummary({ query }) {
+    const [meta, setMeta] = useState(null);
+
+    useEffect(() => {
+        if (!query) return;
+        let cancelled = false;
+
+        safeFetch(`${ARCTIC}/api/users/search?author=${encodeURIComponent(query)}&limit=1`)
+            .then((userRes) => {
+                if (cancelled) return;
+                const m = userRes.data?.[0]?._meta;
+                if (m) setMeta(m);
+            });
+
+        return () => { cancelled = true; };
+    }, [query]);
+
+    if (!meta) return null;
+
+    const firstSeenTs = Math.min(...[meta.earliest_post_at, meta.earliest_comment_at].filter(Boolean));
+    const firstSeen = Number.isFinite(firstSeenTs)
+        ? new Date(firstSeenTs * 1000).toLocaleDateString([], { month: "short", year: "numeric" })
+        : null;
+
+    return (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-4 px-3 py-2 bg-[#1a1a1b] border border-[#343536] rounded text-[11px] text-[#818384]">
+            <span><span className="text-[#d7dadc] font-medium">{fmtBig(meta.num_posts)}</span> archived posts</span>
+            <span><span className="text-[#d7dadc] font-medium">{fmtBig(meta.num_comments)}</span> comments</span>
+            {meta.total_karma != null && (
+                <span><span className="text-[#d7dadc] font-medium">{fmtBig(meta.total_karma)}</span> karma</span>
+            )}
+            {firstSeen && (
+                <span>active since <span className="text-[#d7dadc] font-medium">{firstSeen}</span></span>
             )}
         </div>
     );
@@ -1404,6 +1515,7 @@ function DinoGame() {
         let spawnIn = 60;
         let legFrame = 0;
         let raf;
+        let last = performance.now(); // for frame-rate-independent motion
 
         function resetGame() {
             dino.y = GROUND_Y - dino.h;
@@ -1457,7 +1569,13 @@ function DinoGame() {
             ctx.fillRect(o.x + o.w - 3, o.y + o.h * 0.25, 3, o.h * 0.4); // right arm
         }
 
-        function tick() {
+        function tick(now) {
+            // Frame-rate-independent timestep: how many 60fps-frames this frame
+            // represents. Clamped so a lag spike or 120Hz screen can't double the
+            // game speed or teleport the dino through an obstacle.
+            const f = Math.min(2.5, (now - last) / (1000 / 60));
+            last = now;
+
             ctx.clearRect(0, 0, W, H);
             ctx.fillStyle = BG;
             ctx.fillRect(0, 0, W, H);
@@ -1471,13 +1589,13 @@ function DinoGame() {
             ctx.stroke();
 
             if (state === "running") {
-                dino.vy += 0.95;
-                dino.y += dino.vy;
+                dino.vy += 0.95 * f;
+                dino.y += dino.vy * f;
                 if (dino.y >= GROUND_Y - dino.h) { dino.y = GROUND_Y - dino.h; dino.vy = 0; dino.onGround = true; }
 
-                spawnIn--;
+                spawnIn -= f;
                 if (spawnIn <= 0) { spawn(); spawnIn = Math.max(45, 95 - speed * 3) + Math.random() * 45; }
-                obstacles.forEach((o) => { o.x -= speed; });
+                obstacles.forEach((o) => { o.x -= speed * f; });
                 obstacles = obstacles.filter((o) => o.x + o.w > 0);
 
                 for (const o of obstacles) {
@@ -1488,9 +1606,9 @@ function DinoGame() {
                     }
                 }
 
-                score += 0.15;
-                speed = Math.min(18, speed + 0.006);
-                legFrame++;
+                score += 0.15 * f;
+                speed = Math.min(18, speed + 0.006 * f);
+                legFrame += f;
             }
 
             drawDino();
@@ -1569,7 +1687,9 @@ export default function App() {
     const [username, setUsername] = useState("");
     const [query, setQuery] = useState("");
     const [activeTab, setActiveTab] = useState("posts");
-    const [searched, setSearched] = useState(false);
+    const [searched, setSearched] = useState(
+        () => new URLSearchParams(window.location.search).has("dino")
+    );
     const [initialLoading, setInitialLoading] = useState(false);
     const [dateFrom, setDateFrom] = useState("");
     const [dateTo, setDateTo] = useState("");
@@ -1582,7 +1702,11 @@ export default function App() {
     const [suggestionIdx, setSuggestionIdx] = useState(0);
     const EXAMPLE_USERS = ["spez", "GallowBoob", "Unidan", "kn0thing"];
 
-    const [arcticHealthDown, setArcticHealthDown] = useState(false);
+    // ?dino in the URL forces the maintenance screen (which hosts the dino game)
+    // so it can be tested without waiting for a real Arctic Shift outage.
+    const [arcticHealthDown, setArcticHealthDown] = useState(
+        () => new URLSearchParams(window.location.search).has("dino")
+    );
     const [bannerDismissed, setBannerDismissed] = useState(false);
     const [searchBlocked, setSearchBlocked] = useState(false);
 
@@ -1636,12 +1760,14 @@ export default function App() {
         });
     }, []);
 
-    const searchUser = useCallback(async (rawUser) => {
+    const searchUser = useCallback(async (rawUser, { push = true } = {}) => {
         const user = normalizeUsername(rawUser);
         if (!user) return;
-        const url = new URL(window.location.href);
-        url.searchParams.set("u", user);
-        window.history.pushState({}, "", url);
+        if (push) {
+            const url = new URL(window.location.href);
+            url.searchParams.set("u", user);
+            window.history.pushState({}, "", url);
+        }
         setUsername(user);
         setQuery(user);
         setSearched(true);
@@ -1653,6 +1779,22 @@ export default function App() {
         setAppliedSubreddit(subreddit.trim());
         setInitialLoading(false);
     }, [buildFilters, posts, comments, subreddit]);
+
+    // Browser back/forward: re-run the search in the URL, or return to the landing page
+    useEffect(() => {
+        const onPop = () => {
+            const u = normalizeUsername(new URLSearchParams(window.location.search).get("u"));
+            if (u) {
+                searchUser(u, { push: false });
+            } else {
+                setSearched(false);
+                setUsername("");
+                setQuery("");
+            }
+        };
+        window.addEventListener("popstate", onPop);
+        return () => window.removeEventListener("popstate", onPop);
+    }, [searchUser]);
 
     const handleSubmit = useCallback(async (e) => {
         e.preventDefault();
@@ -1791,9 +1933,10 @@ export default function App() {
                 <div className={`max-w-3xl mx-auto px-4 transition-all duration-300 ${searched ? "pt-6" : "pt-20"}`}>
                     {!searched && (
                         <div className="text-center mb-2">
+                            <h1 className="sr-only">Rosint — Search deleted Reddit posts, removed comments, and private profiles</h1>
                             <picture>
-                                <source srcSet="/rosintTitle.png" type="image/png" />
-                                <img src="/rosintTitle.png" alt="redditOSINT" width="578" height="284" className="mx-auto mb-4" style={{ width: "578px", maxWidth: "90vw" }} />
+                                <source srcSet="/rosintTitle.webp" type="image/webp" />
+                                <img src="/rosintTitle.png" alt="redditOSINT" width="578" height="284" fetchPriority="high" className="mx-auto mb-4" style={{ width: "578px", maxWidth: "90vw" }} />
                             </picture>
                             <p className="text-sm text-[#cccccc]">Search any Reddit username to view their <u>deleted posts</u>, <u>removed comments</u>, and <u>private profiles</u>.</p>
                         </div>
@@ -1973,6 +2116,9 @@ export default function App() {
                                 </div>
                             </div>
                         )}
+
+                        {/* key remounts the card per user so stale stats never flash */}
+                        {!initialLoading && <UserSummary key={query} query={query} />}
 
                         <div className="flex items-center border-b border-[#1c1c1d] mb-4">
                             <div className="flex flex-1">
