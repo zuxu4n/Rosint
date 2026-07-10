@@ -58,7 +58,27 @@ const BLOCKED_HASHES = [
     "01028ef25029a0f7980fe4f7913dbd4971fd7f57546cd84d317e30d963f69d88",
     "6b01a248ecd6c229aec29c799f2282841da8d5d0310db0a5178ac2e2cfc59c9f",
     "0606cacac6070843928fee448c74023c497f84fd8fe9792c70928910a4552dc0",
-    "c0a520b1a48cee4cbda1c8c6d7a53660f774e20459dc536726a6d37bdd57cb31"
+    "c0a520b1a48cee4cbda1c8c6d7a53660f774e20459dc536726a6d37bdd57cb31",
+    "68aa629eecb8a4be931a406714d01108e1dc271f36fa4d7a625a6aea051979f9",
+    "f1db369cdb945be52691345a150978897a9f51d8f4780be67f8a042860df89f9",
+    "eee98ebf4a5a27181cbdfe07fc6e134d6f69f6459458d28cb918791b5dde9b15",
+    "148682b6ec13b5a2d7c3af93504940e172ffb9ecd8939852b6e9dcfa75be7ec0",
+    "378014fb44e18c9adcad0dc6748bec267ddcd8efa21e48bf2b35b4985b0d3e7f",
+    "a8519803b3bd803fe06c7d33e128baab28daf61b8e9272dd9101664528e8cb6e",
+    "812a2a2a218e67e29e7953ec64f784f93bf8e3e5b472ec0c3c380ec834bbccef",
+    "f791fcc22d559470bc7427ff5003c3583cd8fe423361ce7b6e254b7eb82f2696",
+    "60cbf58bbe7db7da0910f2e55eecf0602b08612234429a79731a5b6a6e7bb613",
+    "5c8eaa30e52203f4ba1636c4055706afad818d7ec6b7475fdb319cf537ac0e71",
+    "2317b657e1713844acfe0195ee45a7af0d7d48dbd1ecfd094603c6dbcd7491f7",
+    "209f4cde08a9cbaf362d0304a5589f9bd87944d36f12329e893a0b30a9e054b5",
+    "401d71835b22f55c5a52bd7b2a4d9c9cd42c8073ce95b88f80f5f43a723a25f2",
+    "8c1fecb83af9aecf17e943b18e3ce12937d99151cbf68dd3eb294c672c24a8ae",
+    "1828ae338086c8f8fc5366a7bf86a145fae6e662e7833c597c37873c44ccf757",
+    "34066647a7368b2dbf0ec1f1415e0e23ecdc8340fdb9a74d0132e529619e3fa0",
+    "e6a0cf39e603716e7a01641afae9930d17225ce18c3e0ce4b9b586dfd045a32c",
+    "3cb9fb9a376a84b290e464cc4d7b442c208c7e25747ca3895c6f8f1a65ab4538",
+    "1a1758564c8899fa784e982fcd11e61235b17c0ab05795deac4b3706fef6511b",
+    "b15b37f137afe4ebc4c252063d994ce6eb0c38644c033f0961a5bbee0c1d17fb"
 ];
 // Strip anything users paste around a username: @, leading slashes, full
 // reddit URLs, and u/ /u/ user/ prefixes. Returns the bare username.
@@ -1920,8 +1940,8 @@ export default function App() {
                 {arcticIsDown && !bannerDismissed && !searched && (
                     <div className="bg-amber-900/40 border-b border-amber-700/50 px-4 py-2 flex items-center justify-between gap-3">
                         <p className="text-[12px] text-amber-300">
-                            <span className="font-semibold">The server is currently under maintenance.</span>
-                            {" "}It will be back within a few hours.
+                            <span className="font-semibold">Arctic Shift is briefly unavailable.</span>
+                            {" "}This is often just its new rate limiting, so retrying in a few seconds usually works. If it keeps failing it may be down for a couple of hours.
                         </p>
                         <button onClick={() => setBannerDismissed(true)}
                                 aria-label="Dismiss"
@@ -2064,10 +2084,10 @@ export default function App() {
                     <div className="max-w-md mx-auto px-4 mt-12 pb-16">
                         <div className="border border-[#3a3320] bg-[#1a1a1b] rounded-xl px-7 pt-10 pb-5 text-center shadow-lg shadow-black/30">
                             <p className="text-[#f3f4f3] text-lg font-semibold mb-2">
-                                We'll be right back!
+                                Give it another try in a moment
                             </p>
                             <p className="text-[#a8a8a9] text-sm leading-relaxed">
-                                The server is taking a quick maintenance break. Search should be back up within a few hours, so feel free to check in again a little later.
+                                Search is briefly unavailable. This is often just a short hiccup that clears in a few seconds, so try again shortly. If it keeps failing, it may be down for a couple of hours, so check back later.
                             </p>
                             <DinoGame />
                         </div>
