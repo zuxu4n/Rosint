@@ -1940,8 +1940,8 @@ export default function App() {
                 {arcticIsDown && !bannerDismissed && !searched && (
                     <div className="bg-amber-900/40 border-b border-amber-700/50 px-4 py-2 flex items-center justify-between gap-3">
                         <p className="text-[12px] text-amber-300">
-                            <span className="font-semibold">Arctic Shift is briefly unavailable.</span>
-                            {" "}This is often just its new rate limiting, so retrying in a few seconds usually works. If it keeps failing it may be down for a couple of hours.
+                            <span className="font-semibold">Search is briefly unavailable.</span>
+                            {" "}This is often just a short hiccup, so retrying in a few seconds usually works. If it keeps failing it may be down for a couple of hours.
                         </p>
                         <button onClick={() => setBannerDismissed(true)}
                                 aria-label="Dismiss"
