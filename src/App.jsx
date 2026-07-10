@@ -155,6 +155,57 @@ function timeAgo(utc) {
     return `${Math.floor(d / 365)}y ago`;
 }
 
+function fullTimestamp(utc) {
+    // Reddit created_utc is UTC seconds; rendered in the viewer's local timezone.
+    return new Date(utc * 1000).toLocaleString(undefined, {
+        dateStyle: "medium",
+        timeStyle: "long",
+    });
+}
+
+// Relative date ("3d ago") with a fast custom tooltip showing the exact time on
+// hover. Uses a scoped group (group/time) so it isn't triggered by the card's
+// own group-hover, and a 75ms fade instead of the browser's slow native title.
+function HoverTime({ utc }) {
+    return (
+        <span className="relative inline-block group/time">
+            {timeAgo(utc)}
+            <span className="pointer-events-none absolute top-full left-0 mt-1 z-50 whitespace-nowrap rounded border border-[#343536] bg-[#0d0d0d] px-2 py-1 text-[11px] text-[#d7dadc] opacity-0 group-hover/time:opacity-100 transition-opacity duration-75 shadow-lg shadow-black/40">
+                {fullTimestamp(utc)}
+            </span>
+        </span>
+    );
+}
+
+// Wraps a clickable image and shows a hint that follows the cursor. Uses a
+// fixed-position tooltip so it appears instantly at the pointer and isn't
+// clipped by the card's overflow-hidden.
+function HoverImageHint({ hint, className = "", children }) {
+    const [pos, setPos] = useState(null);
+    const track = (e) => setPos({ x: e.clientX, y: e.clientY });
+    let style;
+    if (pos) {
+        const vw = window.innerWidth || document.documentElement.clientWidth || 0;
+        // Keep the tooltip on-screen near the right edge; fall back to a plain
+        // offset if the viewport width isn't available.
+        const left = vw ? Math.min(pos.x + 14, vw - 180) : pos.x + 14;
+        style = { left, top: pos.y + 14 };
+    }
+    return (
+        <div className={className} onMouseEnter={track} onMouseMove={track} onMouseLeave={() => setPos(null)}>
+            {children}
+            {pos && (
+                <span
+                    className="pointer-events-none fixed z-[100] whitespace-nowrap rounded border border-[#343536] bg-[#0d0d0d] px-2 py-1 text-[11px] text-[#d7dadc] shadow-lg shadow-black/40"
+                    style={style}
+                >
+                    {hint}
+                </span>
+            )}
+        </div>
+    );
+}
+
 function fmtNum(n) {
     if (n == null) return "0";
     if (Math.abs(n) >= 1000) return `${(n / 1000).toFixed(1)}k`;
@@ -521,7 +572,7 @@ function PostCard({ post, embedded = false }) {
                                     <div className="flex items-center gap-1.5 text-[11px] text-[#818384] mb-1.5 flex-wrap">
                                         <span className="font-medium text-[#d7dadc]">{post.subreddit_name_prefixed}</span>
                                         <span>·</span>
-                                        <span>{timeAgo(post.created_utc)}</span>
+                                        <HoverTime utc={post.created_utc} />
                                         <StatusBadges item={post} type="posts" />
                                         {post.link_flair_text && (
                                             <>
@@ -563,15 +614,16 @@ function PostCard({ post, embedded = false }) {
                                     </div>
                                 </div>
                                 {thumb && (
-                                    <div
-                                        role="button"
-                                        tabIndex={0}
-                                        title="Open image in new tab"
-                                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); window.open(thumb, "_blank", "noopener,noreferrer"); }}
-                                        className="flex-shrink-0 w-[70px] h-[52px] rounded overflow-hidden bg-[#272729] cursor-zoom-in">
-                                        <img src={thumb} alt="" width="70" height="52" className="w-full h-full object-cover" loading="lazy"
-                                             onError={(e) => { e.target.style.display = "none"; }} />
-                                    </div>
+                                    <HoverImageHint hint="Open image in new tab" className="flex-shrink-0 self-start">
+                                        <div
+                                            role="button"
+                                            tabIndex={0}
+                                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); window.open(thumb, "_blank", "noopener,noreferrer"); }}
+                                            className="w-[70px] h-[52px] rounded overflow-hidden bg-[#272729] cursor-zoom-in">
+                                            <img src={thumb} alt="" width="70" height="52" className="w-full h-full object-cover" loading="lazy"
+                                                 onError={(e) => { e.target.style.display = "none"; }} />
+                                        </div>
+                                    </HoverImageHint>
                                 )}
                             </div>
                             {hasBody && thumb && (
@@ -677,7 +729,7 @@ function ParentChain({ parentId }) {
                                 u/{comment.author}
                             </a>
                             <span>·</span>
-                            <span>{timeAgo(comment.created_utc)}</span>
+                            <HoverTime utc={comment.created_utc} />
                         </div>
                         <p className="text-sm text-[#818384] leading-relaxed line-clamp-3 whitespace-pre-wrap break-words">
                             {comment.body || "(no content)"}
@@ -805,7 +857,7 @@ function CommentCard({ comment, isNested = false, skipPostLoad = false }) {
                             u/{comment.author}
                         </a>
                         <span>·</span>
-                        <span>{timeAgo(comment.created_utc)}</span>
+                        <HoverTime utc={comment.created_utc} />
                         <StatusBadges item={comment} type="comments" />
                         <span>·</span>
                         <a href={threadUrl} target="_blank" rel="noopener noreferrer"
@@ -834,12 +886,13 @@ function CommentCard({ comment, isNested = false, skipPostLoad = false }) {
                                 </p>
                             )}
                             {img && (
-                                <a href={img} target="_blank" rel="noopener noreferrer"
-                                   title="Open image in new tab"
-                                   className="mt-2 block w-24 h-16 rounded overflow-hidden bg-[#272729] cursor-zoom-in">
-                                    <img src={img} alt="" width="96" height="64" className="w-full h-full object-cover" loading="lazy"
-                                         onError={(e) => { e.target.style.display = "none"; }} />
-                                </a>
+                                <HoverImageHint hint="Open image in new tab" className="inline-block mt-2">
+                                    <a href={img} target="_blank" rel="noopener noreferrer"
+                                       className="block w-24 h-16 rounded overflow-hidden bg-[#272729] cursor-zoom-in">
+                                        <img src={img} alt="" width="96" height="64" className="w-full h-full object-cover" loading="lazy"
+                                             onError={(e) => { e.target.style.display = "none"; }} />
+                                    </a>
+                                </HoverImageHint>
                             )}
                         </>
                     )}

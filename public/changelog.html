@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>changelog</title>
     <link rel="icon" type="image/png" href="/dih.jpg" />
-    <script defer src="https://cloud.umami.is/script.js" data-website-id="291c6139-7c9d-4f99-974b-f196cd4f559a"></script>
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -85,7 +84,7 @@
             max-width: 760px;
         }
         .privacy-section > summary {
-            font-size: 32px;
+            font-size: 28px;
             font-weight: 600;
             color: #d7dadc;
             cursor: pointer;
@@ -131,6 +130,14 @@
             color: #818384;
             margin-bottom: 22px;
         }
+        .policy .removal-box {
+            border: 1px solid #4a4a4b;
+            border-radius: 0;
+            padding: 12px 14px;
+            margin-top: 20px;
+            margin-bottom: 0;
+            background: rgba(255, 140, 90, 0.05);
+        }
         .section-spacer { margin-top: 0; }
         .updates-title {
             display: block;
@@ -154,7 +161,7 @@
                 margin-top: 24px;
                 margin-bottom: 40px;
             }
-            .privacy-section > summary { font-size: 26px; }
+            .privacy-section > summary { font-size: 22px; }
             .policy p,
             .policy ul,
             .policy li { font-size: 13px; }
@@ -165,25 +172,6 @@
             gap: 16px;
             flex-wrap: wrap;
         }
-        .removal-link {
-            display: none;
-            color: #ff8c5a;
-            text-decoration: underline;
-            font-family: 'Times New Roman', Times, serif;
-            font-size: 16px;
-            cursor: pointer;
-            white-space: nowrap;
-        }
-        @media (max-width: 768px) {
-            .removal-link { display: inline-block; }
-        }
-        @keyframes flashHighlight {
-            0%   { background-color: rgba(255, 140, 90, 0.55); }
-            100% { background-color: transparent; }
-        }
-        .flash-highlight {
-            animation: flashHighlight 1.2s ease-out;
-        }
     </style>
 </head>
 <body>
@@ -191,37 +179,10 @@
 <div class="kofi-row">
     <script type='text/javascript' src='https://storage.ko-fi.com/cdn/widget/Widget_2.js'></script>
     <script type='text/javascript'>kofiwidget2.init('Support me!', '#ed6023', 'V0C520357J');kofiwidget2.draw();</script>
-    <a href="#removal-info" class="removal-link" onclick="scrollToRemoval(event)">Removal Requests</a>
 </div>
 
-<script type='text/javascript'>
-function scrollToRemoval(e) {
-    e.preventDefault();
-    var el = document.getElementById('removal-info');
-    if (!el) return;
-
-    var done = false;
-    function flash() {
-        if (done) return;            // only fire once per click
-        done = true;
-        window.removeEventListener('scrollend', flash);
-        el.classList.remove('flash-highlight');
-        void el.offsetWidth;          // restart animation if clicked again
-        el.classList.add('flash-highlight');
-        setTimeout(function () { el.classList.remove('flash-highlight'); }, 1200);
-    }
-
-    // Flash once the smooth scroll finishes so it's on-screen; fall back on a timer
-    // for browsers without the 'scrollend' event.
-    window.addEventListener('scrollend', flash);
-    setTimeout(flash, 800);
-
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-}
-</script>
-
 <details class="privacy-section">
-    <summary id="privacy">Privacy</summary>
+    <summary id="privacy">Privacy &amp; Removal Requests</summary>
 
     <div class="policy">
         <p class="effective">Effective: May 26, 2026</p>
@@ -232,16 +193,23 @@ function scrollToRemoval(e) {
         <ul>
             <li><strong>Google Analytics 4</strong>: cookies and visit metrics. See <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Google's privacy policy</a>.</li>
             <li><strong>Vercel Analytics</strong>: cookieless visit counts, plus standard server logs from Vercel hosting. See <a href="https://vercel.com/legal/privacy-policy" target="_blank" rel="noopener noreferrer">Vercel's privacy policy</a>.</li>
-            <li><strong>Umami</strong>: privacy-friendly, cookieless analytics — aggregate page views only, no personal data or cross-site tracking. See <a href="https://umami.is/privacy" target="_blank" rel="noopener noreferrer">Umami's privacy policy</a>.</li>
         </ul>
 
         <p><strong>When you search:</strong> your browser sends the query directly to <a href="https://arctic-shift.photon-reddit.com" target="_blank" rel="noopener noreferrer">Arctic Shift</a> and <a href="https://pullpush.io" target="_blank" rel="noopener noreferrer">PullPush</a>. These requests do not pass through our server. Arctic Shift does not publish a privacy policy. By searching, you accept that.</p>
 
         <p><strong>Your rights</strong> (PIPEDA, GDPR, Quebec Law 25, and similar): access, correction, deletion, or complaint to a regulator. Contact: <a href="mailto:zuxu4n@proton.me">zuxu4n@proton.me</a>.</p>
+
+        <p id="removal-info" class="removal-box"><strong>Removals:</strong> email <a href="mailto:rosint-removal@proton.me">rosint-removal@proton.me</a> with your username. I can restrict an account from being searched, but I cannot remove individual posts or comments, and I am not legally obligated to remove anything. For data removal at the source, contact the services directly: <a href="https://removals.pullpush.io/" target="_blank" rel="noopener noreferrer">PullPush</a> and <a href="https://docs.google.com/forms/d/e/1FAIpQLSfzkmE8Bg6K_xii7aRm66ljzvo2tR59lTsdJ99acW4WX786Vw/viewform?usp=sf_link" target="_blank" rel="noopener noreferrer">ArcticShift</a>.</p>
     </div>
 </details>
 
 <img id="changelog" src="/updatesnstuff.png" alt="Updates n Stuff" class="updates-title" />
+
+<div class="entry">
+    <div class="entry-title">Hover a date to see the exact time</div>
+    <div class="entry-date">7/10/2026</div>
+    <div class="entry-desc">Hovering the date on any post or comment now shows the exact date and time it was posted, in your local timezone.</div>
+</div>
 
 <div class="entry">
     <div class="entry-title">Status badges on posts and comments</div>
@@ -276,7 +244,7 @@ function scrollToRemoval(e) {
 </div>
 
 <div class="entry">
-    <div class="entry-title">Notifies users if Arctic Shift is down</div>
+    <div class="entry-title">Notifies users if server is down</div>
     <div class="entry-date">5/25/2026</div>
     <div class="entry-desc">Pings Arctic Shift on page load and determines based on response status.</div>
 </div>
@@ -338,10 +306,7 @@ function scrollToRemoval(e) {
     </div>
     <div class="credits">
         logo was inspired by <a href="https://searchcord.io" target="_blank" rel="noopener noreferrer">searchcord.io</a><br/>
-        email me <a href="mailto:rosint-removal@proton.me">rosint-removal@proton.me</a>
-        <p id="removal-info" style="margin-top:12px; max-width:440px; text-align:left;">
-            For <strong style="color:#ff8c5a;">removal requests</strong>, email me with your username. I can restrict an account from being searched, but I cannot remove individual posts or comments. For data removal at the source, contact the two services directly: <a href="https://removals.pullpush.io/" target="_blank" rel="noopener noreferrer">PullPush</a> and <a href="https://docs.google.com/forms/d/e/1FAIpQLSfzkmE8Bg6K_xii7aRm66ljzvo2tR59lTsdJ99acW4WX786Vw/viewform?usp=sf_link" target="_blank" rel="noopener noreferrer">ArcticShift</a>.
-        </p>
+        email me <a href="mailto:zuxu4n@proton.me">zuxu4n@proton.me</a>
     </div>
 </div>
 
