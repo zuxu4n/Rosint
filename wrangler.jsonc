@@ -1,0 +1,12 @@
+{
+  // Static-assets-only Worker: no "main" script, so every request is served
+  // straight from ./dist as a static asset (free + unlimited on Cloudflare).
+  "name": "rosint",
+  "compatibility_date": "2026-01-01",
+  "assets": {
+    "directory": "./dist",
+    // No path-based routes in the app (deep links are /?u=name), but this makes
+    // any unknown path fall back to index.html instead of a hard 404.
+    "not_found_handling": "single-page-application"
+  }
+}
