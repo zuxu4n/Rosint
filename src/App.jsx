@@ -83,7 +83,10 @@ const BLOCKED_HASHES = [
     "86797e5a810b1d2e9792da810d2e8bedaaffe0babf86902bef218c1c138e0c77",
     "58a835fe77843692f683a97869fbb10868dc1291e1ff7809181a3043871d5e5e",
     "fc9d5879ecfc2cbe373b0bc0cedc42b7173b3038c65a38ac26a26eb7493bda15",
-    "9b30fcb4eaa40234d09779df93d4618b6583f1ff2123ba6d15ba0073a1ab51fc"
+    "9b30fcb4eaa40234d09779df93d4618b6583f1ff2123ba6d15ba0073a1ab51fc",
+    "80bcce3bd2100fb11911e967b5888126725036191c45185754fc00ad1c3fcaef",
+    "a5878955029538fc83c4b9455631897904511f5cc7b17e063adcdb92a1efa2b6",
+    "2cff215af1fb4c9ad245a34d06cbd5a8bf1fc6af27f316ea1ca8192fcf7e1456"
 ];
 // Strip anything users paste around a username: @, leading slashes, full
 // reddit URLs, and u/ /u/ user/ prefixes. Returns the bare username.
@@ -1999,7 +2002,7 @@ export default function App() {
                     <div className="bg-amber-900/40 border-b border-amber-700/50 px-4 py-2 flex items-center justify-between gap-3">
                         <p className="text-[12px] text-amber-300">
                             <span className="font-semibold">Search is briefly unavailable.</span>
-                            {" "}This is often just a short hiccup, so retrying in a few seconds usually works. If it keeps failing it may be down for a couple of hours.
+                            {" "}The server is under a lot of load. Retrying in a few seconds usually works. If it keeps failing it may be down for a couple of hours.
                         </p>
                         <button onClick={() => setBannerDismissed(true)}
                                 aria-label="Dismiss"
@@ -2142,7 +2145,7 @@ export default function App() {
                     <div className="max-w-md mx-auto px-4 mt-12 pb-16">
                         <div className="border border-[#3a3320] bg-[#1a1a1b] rounded-xl px-7 pt-10 pb-5 text-center shadow-lg shadow-black/30">
                             <p className="text-[#f3f4f3] text-lg font-semibold mb-2">
-                                Give it another try in a moment
+                                Sorry about that!
                             </p>
                             <p className="text-[#a8a8a9] text-sm leading-relaxed">
                                 Search is briefly unavailable. This is often just a short hiccup that clears in a few seconds, so try again shortly. If it keeps failing, it may be down for a couple of hours, so check back later.
