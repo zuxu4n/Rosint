@@ -1,4 +1,4 @@
-# Rosint.dev | redditOSINT
+# Rosint.dev
 
 **Reddit user intelligence tool**: search any Reddit user's full post and comment history, including private accounts and deleted content.
 
