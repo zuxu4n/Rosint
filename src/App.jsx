@@ -585,7 +585,14 @@ function PostCard({ post, embedded = false }) {
     return (
         <>
             <div className={`bg-[#1a1a1b] border ${statusBorder(status)} rounded overflow-hidden transition-all duration-150 hover:shadow-lg group`}>
-                <a href={postUrl} target="_blank" rel="noopener noreferrer" className="block">
+                <div
+                    role={hasBody ? "button" : undefined}
+                    tabIndex={hasBody ? 0 : undefined}
+                    aria-label={hasBody ? (bodyOpen ? "Hide post body" : "Show post body") : undefined}
+                    onClick={hasBody ? () => setBodyOpen(o => !o) : undefined}
+                    onKeyDown={hasBody ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setBodyOpen(o => !o); } } : undefined}
+                    className={`block ${hasBody ? "cursor-pointer" : ""}`}
+                >
                     <div className="flex">
                         <div className="flex flex-col items-center justify-start gap-1 px-2.5 py-3 bg-[#161617] min-w-[44px]">
                             <IconArrowUp />
@@ -613,12 +620,21 @@ function PostCard({ post, embedded = false }) {
                                     </p>
                                     <div className="flex items-center gap-3 text-[11px] text-[#818384]">
                                         <button
-                                            onClick={(e) => { e.preventDefault(); if (!comments) handleLoadComments(); }}
+                                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (!comments) handleLoadComments(); }}
                                             disabled={commentsLoading}
                                             className="flex items-center gap-1 hover:text-[#fe5301] transition-colors disabled:opacity-50 cursor-pointer"
                                         >
                                             <IconComment />{embedded ? "" : "show "}{fmtNum(post.num_comments)} comments
                                         </button>
+                                        <a
+                                            href={postUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="flex items-center gap-1 hover:text-[#fe5301] transition-colors"
+                                        >
+                                            <IconExternal />open in reddit
+                                        </a>
                                         {post.domain && !post.is_self && (
                                             <span className="flex items-center gap-1 text-[#4fbdba] truncate max-w-[200px]">
                                             <IconExternal /><span className="truncate">{post.domain}</span>
@@ -627,7 +643,7 @@ function PostCard({ post, embedded = false }) {
                                         {hasBody && !thumb && (
                                             <button
                                                 aria-label={bodyOpen ? "Hide post body" : "Show post body"}
-                                                onClick={(e) => { e.preventDefault(); setBodyOpen(o => !o); }}
+                                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setBodyOpen(o => !o); }}
                                                 className="flex items-center gap-1 ml-auto text-[#818384] hover:text-[#fe5301] transition-colors"
                                             >
                                                 <svg aria-hidden="true" className={`w-3 h-3 transition-transform duration-200 ${bodyOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -655,7 +671,7 @@ function PostCard({ post, embedded = false }) {
                                 <div className="flex items-center mt-2 text-[11px] text-[#818384]">
                                     <button
                                         aria-label={bodyOpen ? "Hide post body" : "Show post body"}
-                                        onClick={(e) => { e.preventDefault(); setBodyOpen(o => !o); }}
+                                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setBodyOpen(o => !o); }}
                                         className="flex items-center gap-1 ml-auto hover:text-[#fe5301] transition-colors"
                                     >
                                         <svg aria-hidden="true" className={`w-3 h-3 transition-transform duration-200 ${bodyOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -667,7 +683,7 @@ function PostCard({ post, embedded = false }) {
                             )}
                         </div>
                     </div>
-                </a>
+                </div>
 
                 {hasBody && bodyOpen && (
                     <div className="border-t border-[#272729] px-4 pt-3 pb-3 ml-[44px]">
