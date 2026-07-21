@@ -1844,7 +1844,7 @@ export default function App() {
     useEffect(() => {
         document.title = searched && query
             ? `u/${query} – Rosint`
-            : "Rosint – Search Deleted Reddit Posts";
+            : "Rosint - View Deleted Reddit Posts, Comments & Private Profiles";
     }, [searched, query]);
 
     useEffect(() => {
