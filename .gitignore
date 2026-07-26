@@ -12,6 +12,15 @@ dist
 dist-ssr
 *.local
 
+# API keys for scripts/triage.mjs — never commit
+.env
+.env.*
+!.env.example
+
+# Local Claude Code state: worktrees are embedded git repos, and launch.json
+# holds machine-specific paths. Nothing here belongs in the repo.
+.claude/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

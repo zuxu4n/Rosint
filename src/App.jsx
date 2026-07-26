@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useMemo, useRef, Component } from "react";
+import { normalizeUsername } from "./normalizeUsername.js";
 
 // ─── API Config ───────────────────────────────────────────────────────────────
 
@@ -115,19 +116,6 @@ const BLOCKED_HASHES = [
     "141ca7ec169435d1ba016a47d8a6245fe46bcaf1b3be676f7ba084955012578d",
     "f5fcf3e2f91d70e070eeec501ac4b94ecd52c544be22677e61693513df013558"
 ];
-// Strip anything users paste around a username: @, leading slashes, full
-// reddit URLs, and u/ /u/ user/ prefixes. Returns the bare username.
-function normalizeUsername(input) {
-    let s = String(input || "").trim();
-    // Full URL → keep only the path after the domain
-    s = s.replace(/^https?:\/\/(www\.|old\.|new\.)?reddit\.com/i, "");
-    // Leading slashes, then optional u/ /user/ prefix, then a leading @
-    s = s.replace(/^\/+/, "").replace(/^(u|user)\//i, "").replace(/^@/, "");
-    // Drop any trailing slash / query / whitespace
-    s = s.replace(/[\/?#].*$/, "").trim();
-    return s;
-}
-
 async function isBlockedUser(name) {
     const norm = normalizeUsername(name).toLowerCase();
     if (!norm) return false;
