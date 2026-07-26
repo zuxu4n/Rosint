@@ -20,6 +20,8 @@
 //   node scripts/triage.mjs <username>
 
 import { fetchHistory, summarize, buildSample, fmtDate } from "./lib/archive.mjs";
+import { normalizeUsername } from "../src/normalizeUsername.js";
+import { readFile } from "node:fs/promises";
 
 // Load keys from the gitignored .env at the repo root. Env vars already set in
 // the shell win, so CI or a one-off override still works.
@@ -29,9 +31,63 @@ try {
     // No .env — fall back to whatever is already in the environment.
 }
 
-const raw = process.argv[2];
-if (!raw) {
-    console.error("Usage: node scripts/triage.mjs <username>");
+// Usernames come from args, a --file, or piped stdin. Interactive paste is
+// deliberately NOT supported: on Windows, Ctrl+Z does not reliably deliver EOF
+// to node through PowerShell, so the process hangs forever instead of running.
+async function readStdin() {
+    const chunks = [];
+    for await (const c of process.stdin) chunks.push(c);
+    return Buffer.concat(chunks).toString("utf8");
+}
+
+const USAGE = `Usage:
+  node scripts/triage.mjs <username> [more…]
+  node scripts/triage.mjs --file names.txt
+  Get-Content names.txt | node scripts/triage.mjs
+
+Put one username per line in the file. u/name, @name, and profile URLs are fine.`;
+
+const argv = process.argv.slice(2);
+let fileArg = null;
+let names = [];
+for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === "--file" || argv[i] === "-f") fileArg = argv[++i];
+    else if (!argv[i].startsWith("-")) names.push(argv[i]);
+}
+
+if (names.length === 0) {
+    if (fileArg) {
+        try {
+            names = (await readFile(fileArg, "utf8")).split(/\r?\n/);
+        } catch (err) {
+            console.error(`Could not read ${fileArg}: ${err.message}`);
+            process.exit(1);
+        }
+    } else if (process.stdin.isTTY) {
+        // No piped input and nothing to read — show usage instead of hanging.
+        console.error(USAGE);
+        process.exit(1);
+    } else {
+        names = (await readStdin()).split(/\r?\n/);
+    }
+}
+
+// Dedupe on the NORMALIZED name so "u/bob", "bob", and a full profile URL
+// collapse to one review instead of three.
+const seenNames = new Set();
+names = names.reduce((out, n) => {
+    const clean = normalizeUsername(n);
+    const key = clean.toLowerCase();
+    if (clean && !seenNames.has(key)) {
+        seenNames.add(key);
+        out.push(clean);
+    }
+    return out;
+}, []);
+
+if (names.length === 0) {
+    console.error("No usernames found.\n");
+    console.error(USAGE);
     process.exit(1);
 }
 
@@ -234,71 +290,127 @@ async function askCloudflare(prompt) {
     return parsed;
 }
 
+// ─── review one account ───────────────────────────────────────────────────────
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function reviewOne(rawUser) {
+    const h = await fetchHistory(rawUser);
+    const stats = summarize(h);
+
+    console.log(`\n${"─".repeat(64)}`);
+    console.log(`u/${h.user}`);
+
+    if (stats.postCount === 0 && stats.commentCount === 0) {
+        console.log(`  no archived history found — nothing to screen`);
+        return { user: h.user, outcome: "no-history" };
+    }
+
+    const sample = buildSample(h, { maxItems: 40, maxChars: 400 });
+    if (sample.length === 0) {
+        console.log(`  history exists but all sampled content is removed/deleted with no text`);
+        console.log(`  judge from subreddits: node scripts/lookup.mjs ${h.user}`);
+        return { user: h.user, outcome: "no-text" };
+    }
+
+    const prompt = buildPrompt(h.user, stats, sample);
+
+    let verdict;
+    let provider = "gemini";
+    try {
+        verdict = await askGemini(prompt);
+    } catch (err) {
+        console.log(`  gemini failed: ${err.message.slice(0, 120)}`);
+        console.log(`  falling back to cloudflare…`);
+        provider = "cloudflare";
+        try {
+            verdict = await askCloudflare(prompt);
+        } catch (err2) {
+            console.log(`  cloudflare also failed: ${err2.message.slice(0, 120)}`);
+            console.log(`  no verdict — review manually: node scripts/lookup.mjs ${h.user}`);
+            return { user: h.user, outcome: "error" };
+        }
+    }
+
+    const cats = verdict.categories || [];
+    const ev = verdict.evidence || [];
+    const v = String(verdict.verdict || "unclear").toLowerCase();
+
+    console.log(`  ${sample.length} items sampled via ${provider}`);
+    console.log(`\n  verdict:     ${v.toUpperCase()}  (confidence: ${verdict.confidence || "?"})`);
+    console.log(`  summary:     ${verdict.summary || "—"}`);
+    console.log(`  categories:  ${cats.length ? cats.join(", ") : "none"}`);
+
+    if (ev.length) {
+        console.log(`\n  evidence`);
+        for (const e of ev) {
+            console.log(`    r/${e.subreddit} — ${e.why}`);
+            console.log(`      "${String(e.quote).replace(/\s+/g, " ").slice(0, 160)}"`);
+        }
+    }
+
+    if (verdict.contains_instructions_to_reviewer) {
+        console.log(`\n  ⚠  Sampled content tried to issue instructions to the reviewer.`);
+        console.log(`     Treat this verdict with extra suspicion and skim the history yourself.`);
+    }
+
+    return { user: h.user, outcome: v, provider };
+}
+
 // ─── run ──────────────────────────────────────────────────────────────────────
 
-const h = await fetchHistory(raw);
-const stats = summarize(h);
-
-if (stats.postCount === 0 && stats.commentCount === 0) {
-    console.log(`\nu/${h.user}: no archived history found — nothing to screen.\n`);
-    process.exit(0);
+if (names.length > 1) {
+    console.log(`Reviewing ${names.length} accounts…`);
 }
 
-const sample = buildSample(h, { maxItems: 40, maxChars: 400 });
-if (sample.length === 0) {
-    console.log(`\nu/${h.user}: history exists but all sampled content is removed/deleted with no text.`);
-    console.log(`Judge from subreddits instead: node scripts/lookup.mjs ${h.user}\n`);
-    process.exit(0);
-}
-
-const prompt = buildPrompt(h.user, stats, sample);
-
-let verdict;
-let provider = "gemini";
-try {
-    verdict = await askGemini(prompt);
-} catch (err) {
-    console.error(`  gemini failed: ${err.message}`);
-    console.error(`  falling back to cloudflare…`);
-    provider = "cloudflare";
+const results = [];
+for (const [i, name] of names.entries()) {
     try {
-        verdict = await askCloudflare(prompt);
-    } catch (err2) {
-        console.error(`\n  cloudflare also failed: ${err2.message}`);
-        console.error(`  No verdict. Review manually: node scripts/lookup.mjs ${h.user}\n`);
-        process.exit(1);
+        results.push(await reviewOne(name));
+    } catch (err) {
+        console.log(`\n${"─".repeat(64)}`);
+        console.log(`u/${name}\n  failed: ${err.message.slice(0, 160)}`);
+        results.push({ user: name, outcome: "error" });
     }
+    // Space out calls so a batch doesn't trip a free-tier per-minute limit.
+    if (i < names.length - 1) await sleep(1500);
 }
 
-// ─── report ───────────────────────────────────────────────────────────────────
+// ─── summary ──────────────────────────────────────────────────────────────────
 
-const cats = verdict.categories || [];
-const ev = verdict.evidence || [];
+console.log(`\n${"═".repeat(64)}`);
 
-console.log(`\nu/${h.user}   (${sample.length} items sampled, via ${provider})`);
-console.log(`\n  verdict:     ${String(verdict.verdict || "?").toUpperCase()}  (confidence: ${verdict.confidence || "?"})`);
-console.log(`  summary:     ${verdict.summary || "—"}`);
-console.log(`  categories:  ${cats.length ? cats.join(", ") : "none"}`);
-
-if (ev.length) {
-    console.log(`\n  evidence`);
-    for (const e of ev) {
-        console.log(`    r/${e.subreddit} — ${e.why}`);
-        console.log(`      "${String(e.quote).replace(/\s+/g, " ").slice(0, 160)}"`);
+if (results.length > 1) {
+    console.log(`summary\n`);
+    const label = {
+        approve: "APPROVE", deny: "DENY", unclear: "UNCLEAR",
+        "no-history": "no history", "no-text": "no text", error: "ERROR",
+    };
+    for (const r of results) {
+        console.log(`  ${(label[r.outcome] || r.outcome).padEnd(12)} u/${r.user}`);
     }
+    console.log("");
 }
 
-if (verdict.contains_instructions_to_reviewer) {
-    console.log(`\n  ⚠  Sampled content tried to issue instructions to the reviewer.`);
-    console.log(`     Treat this verdict with extra suspicion and skim the raw history yourself.`);
+const approved = results.filter((r) => r.outcome === "approve").map((r) => r.user);
+const flagged = results.filter((r) => r.outcome === "deny" || r.outcome === "unclear");
+
+console.log(`── advisory only; your call ──\n`);
+
+if (approved.length) {
+    console.log(`Block the ${approved.length} approved:`);
+    console.log(`  node scripts/block.mjs ${approved.join(" ")}\n`);
+    console.log(`Then reply to each:`);
+    for (const u of approved) console.log(`  node scripts/removal-reply.mjs ${u}`);
+    console.log("");
 }
 
-console.log(`\n  ── advisory only; your call ──`);
-if (verdict.verdict === "approve") {
-    console.log(`  To honor the request:  node scripts/block.mjs ${h.user}`);
-    console.log(`  Then reply:            node scripts/removal-reply.mjs ${h.user}`);
-} else {
-    console.log(`  Recommendation is not to block. Full history: node scripts/lookup.mjs ${h.user}`);
-    console.log(`  To block anyway:       node scripts/block.mjs ${h.user}`);
+if (flagged.length) {
+    console.log(`Not recommended for blocking (${flagged.length}) — inspect before deciding:`);
+    for (const r of flagged) console.log(`  node scripts/lookup.mjs ${r.user}`);
+    console.log("");
 }
-console.log("");
+
+if (!approved.length && !flagged.length) {
+    console.log(`Nothing actionable.\n`);
+}

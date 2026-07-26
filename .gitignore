@@ -17,6 +17,13 @@ dist-ssr
 .env.*
 !.env.example
 
+# Removal-request worklists. These hold plaintext usernames of people who
+# asked to be removed — committing them would undo the point of hashing
+# BLOCKED_HASHES in the first place.
+names.txt
+*.names.txt
+requests/
+
 # Local Claude Code state: worktrees are embedded git repos, and launch.json
 # holds machine-specific paths. Nothing here belongs in the repo.
 .claude/
