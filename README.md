@@ -63,4 +63,4 @@ PullPush:      https://api.pullpush.io/reddit/search/submission/?test&author={us
 
 ---
 
-*For questions or feedback: zuxu4n@proton.me*
+Removals: email rosint-removal@proton.me with your username. For data removal at the source, contact the services directly: [PullPush](https://removals.pullpush.io/) and [ArcticShift](https://docs.google.com/forms/d/e/1FAIpQLSfzkmE8Bg6K_xii7aRm66ljzvo2tR59lTsdJ99acW4WX786Vw/viewform?usp=sf_link).
