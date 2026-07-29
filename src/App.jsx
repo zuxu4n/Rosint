@@ -145,7 +145,8 @@ const BLOCKED_HASHES = [
     "51f7fc3f685debe89eb31307c3346a94043f2289795699214730e350fcab9af1",
     "9996a566f088a7e87b0d475346911aca75ad297ee293f99374b59e4d08caa1ac",
     "e1111040bc7cbde30c9e7be812cd3c82351835dd56601c3a1a3bdb9eda9a3452",
-    "31d27920b41a7a25c77554552869565c466d0044454a8b779d707aa5cf38bc85"
+    "31d27920b41a7a25c77554552869565c466d0044454a8b779d707aa5cf38bc85",
+    "b2e3784f04016bafa051dccc73cc173c7bbcd7e6d1e6d5f71f5cdf949cbd112e"
 ];
 async function isBlockedUser(name) {
     const norm = normalizeUsername(name).toLowerCase();
