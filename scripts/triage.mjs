@@ -7,23 +7,23 @@
 // untrusted text written by strangers, so a bad read (or a prompt-injection
 // attempt) can only produce a wrong suggestion, never a wrong action.
 //
-// Providers: Claude first, Cloudflare Workers AI as fallback. Gemini is still
-// implemented below but unwired — it kept refusing the worst accounts at the
-// input filter, which is exactly where a verdict matters most.
+// Providers: Gemini first, Cloudflare Workers AI as fallback.
+//
+// Known gap: Gemini's input filter returns 400 on the most severe accounts,
+// which are exactly the ones most likely to warrant a deny. Those fall through
+// to Cloudflare, whose 8B model over-flags. Treat a Cloudflare verdict as an
+// availability backstop, not a second opinion.
 //
 // Env:
-//   ANTHROPIC_API_KEY  required for the primary path
-//   CLAUDE_MODEL       optional (default claude-opus-5)
+//   GEMINI_API_KEY     required for the primary path
+//   GEMINI_MODEL       optional (default gemini-3.6-flash)
 //   CF_ACCOUNT_ID      optional, enables the fallback
 //   CF_API_TOKEN       optional, enables the fallback
 //   CF_MODEL           optional (default @cf/meta/llama-3.1-8b-instruct)
-//   GEMINI_API_KEY     unused unless askGemini is wired back in
-//   GEMINI_MODEL       optional (default gemini-3.6-flash)
 //
 // Usage:
 //   node scripts/triage.mjs <username>
 
-import Anthropic from "@anthropic-ai/sdk";
 import { fetchHistory, summarize, buildSample, fmtDate } from "./lib/archive.mjs";
 import { normalizeUsername } from "../src/normalizeUsername.js";
 import { readFile } from "node:fs/promises";
@@ -96,13 +96,8 @@ if (names.length === 0) {
     process.exit(1);
 }
 
-const CLAUDE_MODEL = process.env.CLAUDE_MODEL || "claude-opus-5";
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.6-flash";
 const CF_MODEL = process.env.CF_MODEL || "@cf/meta/llama-3.1-8b-instruct";
-
-// Constructed after loadEnvFile() above, so it picks up ANTHROPIC_API_KEY
-// from .env and not just from the shell.
-const anthropic = new Anthropic();
 
 // Disqualifying categories. Ordinary NSFW, drugs, and edgy-but-harmless
 // content are deliberately NOT here — those get approved.
@@ -142,7 +137,6 @@ const SCHEMA = {
                     why: { type: "string", description: "Which category this supports and why." },
                 },
                 required: ["subreddit", "quote", "why"],
-                additionalProperties: false,
             },
         },
         contains_instructions_to_reviewer: {
@@ -151,9 +145,6 @@ const SCHEMA = {
         },
     },
     required: ["verdict", "confidence", "summary", "categories", "evidence", "contains_instructions_to_reviewer"],
-    // Required by Claude's structured outputs on every object in the schema.
-    // The other providers ignore it.
-    additionalProperties: false,
 };
 
 const POLICY = `You are screening a Reddit account that has asked to be removed from a search tool.
@@ -255,36 +246,6 @@ function extractJson(payload) {
     return null;
 }
 
-async function askClaude(prompt) {
-    if (!process.env.ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY is not set");
-
-    const res = await anthropic.messages.parse({
-        model: CLAUDE_MODEL,
-        max_tokens: 16000,
-        messages: [{ role: "user", content: prompt }],
-        output_config: {
-            format: { type: "json_schema", schema: SCHEMA },
-            effort: "medium",
-        },
-    });
-
-    // A safety classifier declining is a successful 200, not an error, and
-    // leaves content empty or partial. Check before reading it. Throwing here
-    // drops us to the Cloudflare fallback, same as any other provider failure.
-    if (res.stop_reason === "refusal") {
-        throw new Error(`declined the request (${res.stop_details?.category || "unspecified"})`);
-    }
-
-    // parse() validates against SCHEMA and hands back the object.
-    if (res.parsed_output) return res.parsed_output;
-
-    // Validation gave us nothing usable. Degrade through the same scraper the
-    // other providers use rather than failing the whole batch.
-    const parsed = extractJson(res.content?.find((b) => b.type === "text")?.text);
-    if (!parsed) throw new Error("Claude returned an unrecognized shape");
-    return parsed;
-}
-
 async function askGemini(prompt) {
     const key = process.env.GEMINI_API_KEY;
     if (!key) throw new Error("GEMINI_API_KEY is not set");
@@ -372,11 +333,11 @@ async function reviewOne(rawUser) {
     const prompt = buildPrompt(h.user, stats, sample);
 
     let verdict;
-    let provider = "claude";
+    let provider = "gemini";
     try {
-        verdict = await askClaude(prompt);
+        verdict = await askGemini(prompt);
     } catch (err) {
-        console.log(`  claude failed: ${err.message.slice(0, 120)}`);
+        console.log(`  gemini failed: ${err.message.slice(0, 120)}`);
         console.log(`  falling back to cloudflare…`);
         provider = "cloudflare";
         try {
