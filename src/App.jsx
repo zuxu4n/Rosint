@@ -561,6 +561,36 @@ const AnimeFace = () => (
     </svg>
 );
 
+// ─── Back Arrow overlay ───────────────────────────────────────────────────────
+// Sits over the logo once a search is on screen, signalling that clicking the
+// logo goes back. Drawn as a circled left-arrow. Same positioning
+// trick as AnimeFace, and it fades out on hover so the two overlays never
+// fight for the same 40px.
+
+// IconChevronLeft from codex-team/icons (MIT), with the viewBox padded from its
+// native 0 0 24 24 out to 30 units so the mark occupies ~40% of the box. That
+// lets the <svg> be laid out at exactly 40x40 over the logo — integer edges that
+// survive browser zoom — instead of being sized down and re-centred with a
+// fractional translate.
+//
+// The padding is deliberately uneven on both axes. On y it corrects for the
+// chevron's inked centre being 12.5 rather than the native 12. On x it also
+// carries a nudge: minX of -2.4 (rather than the -3 that would centre it) shifts
+// the mark 0.6 units, or 0.8px, to the left. Nudging here rather than with CSS
+// `left` keeps the <svg> box itself on integer pixel edges.
+
+const BackArrow = () => (
+    <svg className="back-arrow-svg" viewBox="-2.4 -2.5 30 30" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        {/* Stroked chevron. Deliberately no strokeLinejoin: the apex rounding is
+            baked into the path as a short curve, so adding one would round it
+            twice. Only the free ends need strokeLinecap. */}
+        <path
+            d="M14.5 17.5L9.64142 12.6414C9.56331 12.5633 9.56331 12.4367 9.64142 12.3586L14.5 7.5"
+            stroke="#fff" strokeWidth="2" strokeLinecap="round"
+        />
+    </svg>
+);
+
 // ─── Error Boundary ───────────────────────────────────────────────────────────
 // Wraps each result card so one malformed archive record (e.g. a comment with a
 // numeric parent_id) can't crash the whole page — it renders a fallback instead.
@@ -635,6 +665,7 @@ function StatusBadges({ item, type }) {
 function PostCard({ post, embedded = false }) {
     const [bodyOpen, setBodyOpen]               = useState(false);
     const [comments, setComments]               = useState(null); // null = not fetched
+    const [commentsOpen, setCommentsOpen]       = useState(false);
     const [commentsLoading, setCommentsLoading] = useState(false);
     const [moreCommentsCount, setMoreComments]  = useState(null);
 
@@ -661,7 +692,16 @@ function PostCard({ post, embedded = false }) {
         } catch {
             setComments([]);
         }
+        setCommentsOpen(true);
         setCommentsLoading(false);
+    }
+
+    // First click fetches and opens. Every click after that just toggles
+    // visibility — the tree is already in state, so re-opening costs no request.
+    function handleToggleComments() {
+        if (commentsLoading) return;
+        if (comments === null) { handleLoadComments(); return; }
+        setCommentsOpen((open) => !open);
     }
 
     return (
@@ -702,11 +742,12 @@ function PostCard({ post, embedded = false }) {
                                     </p>
                                     <div className="flex items-center gap-3 text-[11px] text-[#818384]">
                                         <button
-                                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (!comments) handleLoadComments(); }}
+                                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleToggleComments(); }}
                                             disabled={commentsLoading}
+                                            aria-expanded={embedded ? undefined : commentsOpen}
                                             className="flex items-center gap-1 hover:text-[#fe5301] transition-colors disabled:opacity-50 cursor-pointer"
                                         >
-                                            <IconComment />{embedded ? "" : "show "}{fmtNum(post.num_comments)} comments
+                                            <IconComment />{embedded ? "" : (commentsOpen ? "hide " : "show ")}{fmtNum(post.num_comments)} comments
                                         </button>
                                         <a
                                             href={postUrl}
@@ -776,7 +817,7 @@ function PostCard({ post, embedded = false }) {
                 )}
 
                 {/* ── Loaded comments — merged inside the post card ── */}
-                {!embedded && (commentsLoading || comments !== null) && (
+                {!embedded && (commentsLoading || (comments !== null && commentsOpen)) && (
                     <div className="border-t border-[#272729]">
                         {commentsLoading ? (
                             <div className="flex items-center gap-2 px-3 py-3 text-[#818384]">
@@ -1152,12 +1193,19 @@ function UserSummary({ query }) {
 
 // ─── Empty / Error ────────────────────────────────────────────────────────────
 
+// The secondary line is deliberately generic and is shown for EVERY empty
+// result, not just blocked accounts. Naming removal requests as one possible
+// cause keeps the page honest, while listing it alongside the ordinary causes
+// keeps the two indistinguishable — a message shown only to blocked accounts
+// would defeat runDecoySearch and disclose that the person asked to be removed.
 function EmptyState({ tab, hasFilters, query, onSwitchTab, onClearFilters }) {
     const otherTab = tab === "posts" ? "comments" : "posts";
     return (
         <div className="text-center py-16 text-[#818384]">
             <p className="text-sm mb-2">No {tab} found for this user.</p>
-            <p className="text-[12px] text-[#5a5a5b] mb-4">Their history may not be fully indexed yet.</p>
+            <p className="text-[12px] text-[#5a5a5b] mb-4 max-w-md mx-auto leading-relaxed">
+                Their history may not be fully indexed yet, or it may have been removed from search at the account holder's request.
+            </p>
             <div className="flex flex-col items-center gap-2 text-[12px]">
                 <button type="button" onClick={onSwitchTab} className="text-[#ff4500] hover:underline">
                     Switch to {otherTab} →
@@ -1683,7 +1731,21 @@ function usePaginatedFetch(type) {
         window.scrollTo({ top: 0, behavior: "smooth" });
     }, [_fetch, pageStack, storedFilters]);
 
-    return { items, sources, loading, error, page, arcticDown, reset, goNext, goPrev };
+    // Wipe back to the empty state without touching the network. Used for blocked
+    // accounts, which must render as "no results" without any archive request
+    // going out — a request would both leak the lookup and let a caller infer the
+    // block from the response.
+    const clear = useCallback(() => {
+        setItems([]);
+        setSources([]);
+        setError(null);
+        setPage(1);
+        setPageStack([]);
+        setStoredFilters({});
+        setArcticDown(false);
+    }, []);
+
+    return { items, sources, loading, error, page, arcticDown, reset, clear, goNext, goPrev };
 }
 
 // ─── Dino Game (shown during maintenance) ──────────────────────────────────────
@@ -1939,6 +2001,24 @@ export default function App() {
 
     const hasFilters = dateFrom || dateTo || subreddit.trim() || !showNsfw;
 
+    // A blocked account should be indistinguishable from one the archives simply
+    // have nothing for. Announcing the block leaks that the person asked to be
+    // removed, which is its own piece of information about them. So we mimic the
+    // shape of a real search: the same spinner for a plausible stretch, then the
+    // same empty state. Returning instantly would give it away on timing alone.
+    //
+    // Nothing here touches the network — posts/comments are cleared locally, and
+    // UserSummary is suppressed at the render site because it would otherwise
+    // fetch and display real archive counts for the account.
+    const runDecoySearch = async () => {
+        posts.clear();
+        comments.clear();
+        setSearchBlocked(true);
+        setInitialLoading(true);
+        await new Promise((r) => setTimeout(r, 1000 + Math.random() * 2000));
+        setInitialLoading(false);
+    };
+
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         const u = normalizeUsername(params.get("u"));
@@ -1946,8 +2026,14 @@ export default function App() {
         setUsername(u);
         setQuery(u);
         setSearched(true);
+        // Show the spinner BEFORE the block check, not after. isBlockedUser is
+        // async (crypto.subtle.digest), so there is a window where `searched` is
+        // already true but `searchBlocked` is still false — and UserSummary would
+        // mount and fetch the very name we are about to refuse to look up. It is
+        // gated on !initialLoading, so raising the flag first closes that window.
+        setInitialLoading(true);
         isBlockedUser(u).then((blocked) => {
-            if (blocked) { setSearchBlocked(true); return; }
+            if (blocked) { runDecoySearch(); return; }
             setSearchBlocked(false);
             setInitialLoading(true);
             Promise.all([posts.reset(u, {}), comments.reset(u, {})]).then(() => {
@@ -1967,7 +2053,10 @@ export default function App() {
         setUsername(user);
         setQuery(user);
         setSearched(true);
-        if (await isBlockedUser(user)) { setSearchBlocked(true); return; }
+        // Same reason as the deep-link path above: raise the spinner before the
+        // async block check so UserSummary can't mount against a blocked name.
+        setInitialLoading(true);
+        if (await isBlockedUser(user)) { await runDecoySearch(); return; }
         setSearchBlocked(false);
         setInitialLoading(true);
         const filters = buildFilters();
@@ -1999,12 +2088,21 @@ export default function App() {
         await searchUser(user);
     }, [username, searchUser]);
 
+    // Every path that can start an archive fetch has to consult the blocklist,
+    // not just the two search entry points. Retry and Clear both take the name
+    // from state and refetch, so without this a blocked search could be turned
+    // into a real one by pressing a button that is still on screen.
+    const fetchOrDecoy = async (name, filters) => {
+        if (await isBlockedUser(name)) { await runDecoySearch(); return; }
+        setSearchBlocked(false);
+        setInitialLoading(true);
+        await Promise.all([posts.reset(name, filters), comments.reset(name, filters)]);
+        setInitialLoading(false);
+    };
+
     const handleRetry = useCallback(async () => {
         if (!query) return;
-        setInitialLoading(true);
-        const filters = buildFilters();
-        await Promise.all([posts.reset(query, filters), comments.reset(query, filters)]);
-        setInitialLoading(false);
+        await fetchOrDecoy(query, buildFilters());
     }, [query, buildFilters, posts, comments]);
 
     const clearFilters = useCallback(async () => {
@@ -2014,9 +2112,7 @@ export default function App() {
         setShowNsfw(true);
         setAppliedSubreddit("");
         if (!query) return;
-        setInitialLoading(true);
-        await Promise.all([posts.reset(query, {}), comments.reset(query, {})]);
-        setInitialLoading(false);
+        await fetchOrDecoy(query, {});
     }, [query, posts, comments]);
 
     const active = activeTab === "posts" ? posts : comments;
@@ -2077,12 +2173,50 @@ export default function App() {
                     transform-origin: center;
                     animation: eye-blink 3.5s ease-in-out 1s infinite;
                 }
+
+                @keyframes back-arrow-in {
+                    from { opacity: 0; transform: translateX(6px) scale(0.5); }
+                    to   { opacity: 0.85; transform: translateX(0) scale(1); }
+                }
+
+                .back-arrow-svg {
+                    /* Laid out to cover the 40px logo exactly. Every value here is
+                       an integer (50% of the 40px button is 20, less the 20px
+                       margin = 0), so the glyph's edges land on the same device
+                       pixels as the logo's at any zoom level. Glyph size is set by
+                       the padded viewBox, not by shrinking this box. */
+                    width: 40px;
+                    height: 40px;
+                    opacity: 0.85;
+                    display: block;
+                    position: absolute;
+                    left: 0;
+                    top: 50%;
+                    margin-top: -20px;
+                    z-index: 11;
+                    pointer-events: none;
+                    /* backwards, not both: a filled animation outranks normal
+                       declarations, so both would pin opacity at 1 and the hover
+                       rule below could never take effect. backwards still avoids
+                       a flash before the animation starts. */
+                    animation: back-arrow-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+                    transition: opacity 0.2s ease-out;
+                }
+
+                /* Hovering reveals the face instead — get out of its way. */
+                .logo-btn:hover .back-arrow-svg {
+                    opacity: 0;
+                }
+
+                @media (prefers-reduced-motion: reduce) {
+                    .back-arrow-svg { animation: none; }
+                }
             `}</style>
 
             <header className="border-b border-[#1c1c1d] bg-[#0d0d0d] sticky top-0 z-20">
                 <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
                     <button
-                        aria-label="Go to homepage"
+                        aria-label={searched ? "Back to homepage" : "Go to homepage"}
                         onClick={() => { setSearched(false); setUsername(""); setQuery(""); setDateFrom(""); setDateTo(""); setSubreddit(""); setShowNsfw(true); window.history.pushState({}, "", "/"); }}
                         className="logo-btn group flex items-center gap-2 relative"
                     >
@@ -2094,6 +2228,7 @@ export default function App() {
                             reddit<span className="text-[#fe5301]">OSINT</span>
                         </span>
                         <span className="text-[11px] text-[#818384] border border-[#343536] rounded px-1.5 py-0.5 flex-shrink-0">v1.0</span>
+                        {searched && <BackArrow />}
                         <AnimeFace />
                     </button>
                     <div className="flex-1 flex justify-end items-center gap-4">
@@ -2243,18 +2378,10 @@ export default function App() {
 
                 {!searched && showGraphs && <GlobalChartsPanel compact={showAdvancedFilters} />}
 
-                {searched && searchBlocked && (
-                    <div className="max-w-3xl mx-auto px-4 mt-10 pb-16">
-                        <div className="border border-[#343536] bg-[#1a1a1b] rounded-md px-6 py-8 text-center">
-                            <p className="text-[#d7dadc] text-base font-medium mb-2">
-                                Results unavailable for u/{query}
-                            </p>
-                            <p className="text-[#818384] text-sm leading-relaxed">
-                                This username has been removed from search at the account holder's request.
-                            </p>
-                        </div>
-                    </div>
-                )}
+                {/* Blocked accounts deliberately have no screen of their own — they
+                    fall through to the normal results path and land on EmptyState,
+                    so they look like any other account the archives have nothing
+                    for. See runDecoySearch. */}
 
                 {searched && !searchBlocked && arcticIsDown && (
                     <div className="max-w-md mx-auto px-4 mt-12 pb-16">
@@ -2270,7 +2397,7 @@ export default function App() {
                     </div>
                 )}
 
-                {searched && !searchBlocked && !arcticIsDown && (
+                {searched && (searchBlocked || !arcticIsDown) && (
                     <div className="max-w-3xl mx-auto px-4 mt-6 pb-16">
                         {!initialLoading && (
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
@@ -2313,8 +2440,11 @@ export default function App() {
                             </div>
                         )}
 
-                        {/* key remounts the card per user so stale stats never flash */}
-                        {!initialLoading && <UserSummary key={query} query={query} />}
+                        {/* key remounts the card per user so stale stats never flash.
+                            Skipped entirely for blocked accounts: it fetches live
+                            archive counts, which would both fire a network request
+                            for a name we never look up and print the real totals. */}
+                        {!initialLoading && !searchBlocked && <UserSummary key={query} query={query} />}
 
                         <div className="flex items-center border-b border-[#1c1c1d] mb-4">
                             <div className="flex flex-1">
