@@ -3,7 +3,7 @@
 **Reddit user intelligence tool**: search any Reddit user's full post and comment history, including private accounts and deleted content.
 
 [rosint.dev](https://rosint.dev)
-
+(This video was filmed on release. The site has had some changes since then)
 
 https://github.com/user-attachments/assets/6967e195-7de8-42cf-8429-34ae6281db51
 
