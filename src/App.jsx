@@ -2116,15 +2116,12 @@ function AdZone({ zone, className = "", zoneClassName = "", square = false }) {
     // slot stays visible for preview.
     const [unfilled, setUnfilled] = useState(false);
     useEffect(() => {
-        // Targeted push fills just this zone instead of rescanning every empty
-        // container on the page (matters when many in-between slots mount at
-        // once). push throws inside optimize.js when it has no zone config for
-        // the domain (e.g. localhost). An ad failure must never crash the app.
-        const id = idRef.current;
-        const fill = () => { try { window.optimize.push(id); } catch { /* ads unavailable */ } };
+        // pushAll throws inside optimize.js when it has no zone config for the
+        // domain (e.g. localhost). An ad failure must never crash the app.
+        const rescan = () => { try { window.optimize.pushAll(); } catch { /* ads unavailable */ } };
         const o = (window.optimize = window.optimize || { queue: [] });
-        if (typeof o.push === "function" && o.isInitialized) fill();
-        else o.queue.push(fill);
+        if (typeof o.pushAll === "function") rescan();
+        else o.queue.push(rescan);
 
         const el = elRef.current;
         const check = () => setUnfilled(el.childElementCount === 0);
