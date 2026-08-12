@@ -2043,7 +2043,7 @@ function KeywordsInput({ keywords, setKeywords, onEnter, className = "" }) {
                 value={keywords}
                 onChange={(e) => setKeywords(e.target.value)}
                 onKeyDown={onEnter ? (e) => { if (e.key === "Enter") onEnter(); } : undefined}
-                placeholder="filter keywords"
+                placeholder="Filter Keywords"
                 className="w-full bg-[#1a1a1b] border border-[#343536] rounded pl-8 py-1 pr-7 text-[16px] sm:text-[12px] text-white placeholder-[#818384] focus:outline-none focus:border-[#ff4500] transition-colors"
             />
             {keywords && (
@@ -2101,25 +2101,30 @@ function DateRangeControl({ dateFrom, dateTo, setDateFrom, setDateTo }) {
 }
 
 let bsaInstance = 0;
-function AdZone({ zone, className = "", square = false }) {
+function AdZone({ zone, className = "", zoneClassName = "", square = false }) {
     const idRef = useRef(null);
     const elRef = useRef(null);
     if (!idRef.current) idRef.current = `${zone}_${++bsaInstance}`;
     // With an ad blocker (or a no-fill), the zone div stays empty but its CSS
-    // min-height (index.html) still reserves space — a visible void between
-    // results. If the zone has no children after a grace period, zero the
-    // min-height inline so the slot collapses. The div stays displayed (not
-    // hidden) so BSA can still fill it late; the MutationObserver reopens the
-    // slot the moment content arrives. In dev the placeholder counts as
-    // content, which is what we want — the slot stays visible for preview.
+    // min-height (index.html), the slot's own padding/margins, and the parent
+    // list's flex gap all still reserve space — a visible void between results.
+    // If the zone has no children after a grace period, hide the entire slot:
+    // display:none children are skipped by flex layout, so no gap remains.
+    // Hiding applies only while the zone is EMPTY (never a served impression),
+    // and the MutationObserver reopens the slot the moment content arrives.
+    // In dev the placeholder counts as content, which is what we want — the
+    // slot stays visible for preview.
     const [unfilled, setUnfilled] = useState(false);
     useEffect(() => {
-        // pushAll throws inside optimize.js when it has no zone config for the
-        // domain (e.g. localhost). An ad failure must never crash the app.
-        const rescan = () => { try { window.optimize.pushAll(); } catch { /* ads unavailable */ } };
+        // Targeted push fills just this zone instead of rescanning every empty
+        // container on the page (matters when many in-between slots mount at
+        // once). push throws inside optimize.js when it has no zone config for
+        // the domain (e.g. localhost). An ad failure must never crash the app.
+        const id = idRef.current;
+        const fill = () => { try { window.optimize.push(id); } catch { /* ads unavailable */ } };
         const o = (window.optimize = window.optimize || { queue: [] });
-        if (typeof o.pushAll === "function") rescan();
-        else o.queue.push(rescan);
+        if (typeof o.push === "function" && o.isInitialized) fill();
+        else o.queue.push(fill);
 
         const el = elRef.current;
         const check = () => setUnfilled(el.childElementCount === 0);
@@ -2129,9 +2134,10 @@ function AdZone({ zone, className = "", square = false }) {
         return () => { clearTimeout(timer); obs.disconnect(); };
     }, []);
     return (
-        <div id={idRef.current} ref={elRef} className={className}
-             style={unfilled ? { minHeight: 0 } : undefined}>
-            {import.meta.env.DEV && <AdPlaceholder square={square} />}
+        <div className={className} style={unfilled ? { display: "none" } : undefined}>
+            <div id={idRef.current} ref={elRef} className={zoneClassName}>
+                {import.meta.env.DEV && <AdPlaceholder square={square} />}
+            </div>
         </div>
     );
 }
@@ -2610,10 +2616,9 @@ export default function App() {
                     600px min-height (index.html); justify-center keeps any
                     shorter creative centered in the box regardless. */}
                 {isSquareAdViewport && (
-                    <div className="fixed right-4 top-1/2 -translate-y-1/2 z-30">
-                        <AdZone zone={AD_ZONES.desktopSquare} square
-                                className="flex flex-col justify-center" />
-                    </div>
+                    <AdZone zone={AD_ZONES.desktopSquare} square
+                            className="fixed right-4 top-1/2 -translate-y-1/2 z-30"
+                            zoneClassName="flex flex-col justify-center" />
                 )}
 
                 {searched && (searchBlocked || !arcticIsDown) && (
@@ -2713,9 +2718,7 @@ export default function App() {
                             gets the in-between unit and the fixed skyscraper
                             instead. */}
                         {isMobileViewport && (
-                            <div className="flex justify-center mb-4">
-                                <AdZone zone={AD_ZONES.topBanner} />
-                            </div>
+                            <AdZone zone={AD_ZONES.topBanner} className="flex justify-center mb-4" />
                         )}
 
                         {/* key remounts the card per user so stale stats never flash.
@@ -2803,9 +2806,7 @@ export default function App() {
                                         .map((post, i) => (
                                             <Fragment key={post.id}>
                                                 {i % 15 === 8 && (
-                                                    <div className="flex justify-center py-1">
-                                                        <AdZone zone={AD_ZONES.inbetweenResults} />
-                                                    </div>
+                                                    <AdZone zone={AD_ZONES.inbetweenResults} className="flex justify-center py-1" />
                                                 )}
                                                 <CardBoundary>
                                                     <PostCard post={post} />
@@ -2821,9 +2822,7 @@ export default function App() {
                                         .map((comment, i) => (
                                             <Fragment key={comment.id}>
                                                 {i % 15 === 8 && (
-                                                    <div className="flex justify-center py-1">
-                                                        <AdZone zone={AD_ZONES.inbetweenResults} />
-                                                    </div>
+                                                    <AdZone zone={AD_ZONES.inbetweenResults} className="flex justify-center py-1" />
                                                 )}
                                                 <CardBoundary>
                                                     <CommentCard comment={comment} />
