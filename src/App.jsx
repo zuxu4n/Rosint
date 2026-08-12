@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo, useRef, Component } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef, Component, Fragment } from "react";
 import { normalizeUsername } from "./normalizeUsername.js";
 
 // ─── API Config ───────────────────────────────────────────────────────────────
@@ -238,13 +238,25 @@ function buildUrls(username, type, pagination = {}, dateFilters = {}) {
 
     const qs = base.join("&");
 
+    // Keyword search: the param name differs per archive (and per type on
+    // Arctic). Arctic only allows it alongside author/subreddit — author is
+    // always present here — and rejects it for very active users; fetchBoth
+    // treats that failure as a degrade to PullPush, not an Arctic outage.
+    let arcticQs = qs;
+    let pullpushQs = qs;
+    if (dateFilters.keywords) {
+        const kw = encodeURIComponent(dateFilters.keywords);
+        arcticQs += type === "posts" ? `&query=${kw}` : `&body=${kw}`;
+        pullpushQs += `&q=${kw}`;
+    }
+
     return {
         arctic: type === "posts"
-            ? `${ARCTIC}/api/posts/search?${qs}`
-            : `${ARCTIC}/api/comments/search?${qs}`,
+            ? `${ARCTIC}/api/posts/search?${arcticQs}`
+            : `${ARCTIC}/api/comments/search?${arcticQs}`,
         pullpush: type === "posts"
-            ? `${PULLPUSH}/reddit/search/submission/?test&${qs}`
-            : `${PULLPUSH}/reddit/search/comment/?test&${qs}`,
+            ? `${PULLPUSH}/reddit/search/submission/?test&${pullpushQs}`
+            : `${PULLPUSH}/reddit/search/comment/?test&${pullpushQs}`,
     };
 }
 
@@ -485,8 +497,19 @@ async function fetchBoth(username, type, pagination = {}, dateFilters = {}) {
         result = result.filter((p) => p.over_18 === dateFilters.over18);
     }
 
+    // "Deleted only": keep just removed/deleted items. Client-side only —
+    // neither archive can filter on status server-side.
+    if (dateFilters.deletedOnly) {
+        result = result.filter((item) => {
+            const s = getStatus(item, type);
+            return s.removed || s.deleted;
+        });
+    }
+
     result.sort((a, b) => b.created_utc - a.created_utc);
-    return { items: result, sources, arcticDown: !arcticRes.ok };
+    // A failed keyword search on Arctic (rejected for very active users) is
+    // not an outage — degrade to PullPush-only instead of the maintenance screen.
+    return { items: result, sources, arcticDown: !arcticRes.ok && !dateFilters.keywords };
 }
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
@@ -528,6 +551,13 @@ const IconSpinner = () => (
 const IconChevronLeft = () => (
     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+    </svg>
+);
+
+const IconCalendar = () => (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <rect x="3" y="5" width="18" height="16" rx="2" strokeWidth={2} />
+        <path strokeLinecap="round" strokeWidth={2} d="M16 3v4M8 3v4M3 11h18" />
     </svg>
 );
 
@@ -1941,6 +1971,171 @@ function DinoGame() {
 
 const TABS = ["posts", "comments"];
 
+// ─── Ads (BuySellAds) ─────────────────────────────────────────────────────────
+// The optimize.js loader lives in index.html. BSA fills zones by id prefix
+// (div[id^="bsa-zone_…"]), so each mount gets a unique suffix, and pushAll()
+// asks BSA to rescan the DOM — needed in an SPA where zones appear after the
+// initial page load. Which sizes serve per zone is decided by BSA's viewport
+// config, so the same zone renders a small banner on mobile and a leaderboard
+// on desktop; the square zone has no sizes below 990px and stays empty there.
+const AD_ZONES = {
+    inbetweenResults: "bsa-zone_1786468159516-9",
+    topBanner: "bsa-zone_1786468046487-4",
+    desktopSquare: "bsa-zone_1786468257501-4",
+};
+
+// Dev-only filler so placement and size can be previewed locally, where BSA
+// refuses to serve (localhost isn't an approved domain). Mirrors the real
+// creative sizes per breakpoint; production ships the bare zone div.
+// Only the skyscraper sizes are used in the BSA zone config.
+const SQUARE_AD_SIZES = [[120, 600], [160, 600]];
+function AdPlaceholder({ square = false }) {
+    // Click the square placeholder to cycle through every size BSA can serve
+    // in that zone, to preview how each sits in the corner.
+    const [sizeIdx, setSizeIdx] = useState(0);
+    if (square) {
+        const [w, h] = SQUARE_AD_SIZES[sizeIdx];
+        return (
+            <div onClick={() => setSizeIdx((i) => (i + 1) % SQUARE_AD_SIZES.length)}
+                 style={{ width: w, height: h }}
+                 className="flex items-center justify-center border border-dashed border-[#343536] bg-[#1a1a1b] text-[11px] text-[#818384] select-none cursor-pointer">
+                Ad · {w}×{h}
+            </div>
+        );
+    }
+    return (
+        <div className="flex items-center justify-center border border-dashed border-[#343536] bg-[#1a1a1b] text-[11px] text-[#818384] select-none w-[468px] h-[60px] min-[880px]:w-[728px] min-[880px]:h-[90px] max-w-full">
+            <span className="min-[880px]:hidden">Ad · 468×60</span>
+            <span className="hidden min-[880px]:inline">Ad · 728×90</span>
+        </div>
+    );
+}
+
+// Viewport gates matching BSA's own breakpoints (880px for the banner zones,
+// 990px for the square zone). Zones that shouldn't exist at a given size are
+// unmounted entirely rather than CSS-hidden: hiding a zone the script already
+// filled would serve invisible impressions, which ad networks treat as a
+// policy violation.
+function useMediaQuery(query) {
+    const [matches, setMatches] = useState(() => window.matchMedia(query).matches);
+    useEffect(() => {
+        const mq = window.matchMedia(query);
+        const onChange = (e) => setMatches(e.matches);
+        mq.addEventListener("change", onChange);
+        return () => mq.removeEventListener("change", onChange);
+    }, [query]);
+    return matches;
+}
+
+// Keyword filter input with a search-bar style clear X (shown while non-empty).
+// Used on the landing Advanced filters and above the results next to the sort.
+function KeywordsInput({ keywords, setKeywords, onEnter, className = "" }) {
+    return (
+        <div className={`relative ${className}`}>
+            <svg aria-hidden="true" className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#818384] pointer-events-none"
+                 fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+            </svg>
+            <input
+                aria-label="Filter keywords"
+                type="text"
+                value={keywords}
+                onChange={(e) => setKeywords(e.target.value)}
+                onKeyDown={onEnter ? (e) => { if (e.key === "Enter") onEnter(); } : undefined}
+                placeholder="filter keywords"
+                className="w-full bg-[#1a1a1b] border border-[#343536] rounded pl-8 py-1 pr-7 text-[16px] sm:text-[12px] text-white placeholder-[#818384] focus:outline-none focus:border-[#ff4500] transition-colors"
+            />
+            {keywords && (
+                <button
+                    type="button"
+                    aria-label="Clear keywords"
+                    onClick={() => setKeywords("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-[#818384] hover:text-[#d7dadc] transition-colors"
+                >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeWidth={2} d="M6 6l12 12M18 6L6 18" />
+                    </svg>
+                </button>
+            )}
+        </div>
+    );
+}
+
+// "During" + calendar icon; the icon opens a small popup with the From/To
+// date pickers. Used by both the landing Advanced filters and the results
+// Filters panel; the icon turns orange while a date range is set.
+function DateRangeControl({ dateFrom, dateTo, setDateFrom, setDateTo }) {
+    const [open, setOpen] = useState(false);
+    const ref = useRef(null);
+    useEffect(() => {
+        if (!open) return;
+        const onDown = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+        document.addEventListener("mousedown", onDown);
+        return () => document.removeEventListener("mousedown", onDown);
+    }, [open]);
+    return (
+        <div ref={ref} className="relative flex items-center gap-1.5">
+            <span className="text-[11px] text-[#818384]">During</span>
+            <button
+                type="button"
+                aria-label="Pick date range"
+                aria-expanded={open}
+                onClick={() => setOpen(v => !v)}
+                className={`transition-colors ${dateFrom || dateTo ? "text-[#ff4500]" : "text-[#818384] hover:text-[#d7dadc]"}`}
+            >
+                <IconCalendar />
+            </button>
+            {open && (
+                <div className="absolute left-0 top-full mt-2 z-40 flex flex-col items-start gap-1 bg-[#1a1a1b] border border-[#343536] rounded p-3 shadow-lg">
+                    <span className="text-[11px] text-[#818384]">From</span>
+                    <input aria-label="Date from" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+                           className="bg-[#0d0d0d] border border-[#343536] rounded-sm px-2 py-1 text-[16px] sm:text-[12px] text-[#d7dadc] focus:outline-none focus:border-[#ff4500] transition-colors [color-scheme:dark]" />
+                    <span className="text-[11px] text-[#818384] mt-1">To</span>
+                    <input aria-label="Date to" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+                           className="bg-[#0d0d0d] border border-[#343536] rounded-sm px-2 py-1 text-[16px] sm:text-[12px] text-[#d7dadc] focus:outline-none focus:border-[#ff4500] transition-colors [color-scheme:dark]" />
+                </div>
+            )}
+        </div>
+    );
+}
+
+let bsaInstance = 0;
+function AdZone({ zone, className = "", square = false }) {
+    const idRef = useRef(null);
+    const elRef = useRef(null);
+    if (!idRef.current) idRef.current = `${zone}_${++bsaInstance}`;
+    // With an ad blocker (or a no-fill), the zone div stays empty but its CSS
+    // min-height (index.html) still reserves space — a visible void between
+    // results. If the zone has no children after a grace period, zero the
+    // min-height inline so the slot collapses. The div stays displayed (not
+    // hidden) so BSA can still fill it late; the MutationObserver reopens the
+    // slot the moment content arrives. In dev the placeholder counts as
+    // content, which is what we want — the slot stays visible for preview.
+    const [unfilled, setUnfilled] = useState(false);
+    useEffect(() => {
+        // pushAll throws inside optimize.js when it has no zone config for the
+        // domain (e.g. localhost). An ad failure must never crash the app.
+        const rescan = () => { try { window.optimize.pushAll(); } catch { /* ads unavailable */ } };
+        const o = (window.optimize = window.optimize || { queue: [] });
+        if (typeof o.pushAll === "function") rescan();
+        else o.queue.push(rescan);
+
+        const el = elRef.current;
+        const check = () => setUnfilled(el.childElementCount === 0);
+        const timer = setTimeout(check, 4000);
+        const obs = new MutationObserver(check);
+        obs.observe(el, { childList: true });
+        return () => { clearTimeout(timer); obs.disconnect(); };
+    }, []);
+    return (
+        <div id={idRef.current} ref={elRef} className={className}
+             style={unfilled ? { minHeight: 0 } : undefined}>
+            {import.meta.env.DEV && <AdPlaceholder square={square} />}
+        </div>
+    );
+}
+
 export default function App() {
     const [username, setUsername] = useState("");
     const [query, setQuery] = useState("");
@@ -1952,13 +2147,18 @@ export default function App() {
     const [dateFrom, setDateFrom] = useState("");
     const [dateTo, setDateTo] = useState("");
     const [subreddit, setSubreddit] = useState("");
-    const [showNsfw, setShowNsfw] = useState(true); // checked = show NSFW (no filter); unchecked = exclude NSFW
+    const [nsfwOnly, setNsfwOnly] = useState(false); // checked = only NSFW posts
+    const [deletedOnly, setDeletedOnly] = useState(false); // checked = only removed/deleted items
+    const [keywords, setKeywords] = useState(""); // full-text search within the user's history
     const [appliedSubreddit, setAppliedSubreddit] = useState("");
     const [sortOrder, setSortOrder] = useState("desc");
     const [showGraphs, setShowGraphs] = useState(false);
     const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+    const [showResultsFilters, setShowResultsFilters] = useState(false);
     const [suggestionIdx, setSuggestionIdx] = useState(0);
     const EXAMPLE_USERS = ["spez", "GallowBoob", "Unidan", "kn0thing"];
+    const isMobileViewport = useMediaQuery("(max-width: 879px)");
+    const isSquareAdViewport = useMediaQuery("(min-width: 990px)");
 
     // ?dino in the URL forces the maintenance screen (which hosts the dino game)
     // so it can be tested without waiting for a real Arctic Shift outage.
@@ -1995,11 +2195,13 @@ export default function App() {
         if (dateFrom) f.dateFrom = Math.floor(new Date(dateFrom).getTime() / 1000);
         if (dateTo) f.dateTo = Math.floor(new Date(dateTo).getTime() / 1000);
         if (subreddit.trim()) f.subreddit = subreddit.trim();
-        if (!showNsfw) f.over18 = false;
+        if (nsfwOnly) f.over18 = true;
+        if (deletedOnly) f.deletedOnly = true;
+        if (keywords.trim()) f.keywords = keywords.trim();
         return f;
-    }, [dateFrom, dateTo, subreddit, showNsfw]);
+    }, [dateFrom, dateTo, subreddit, nsfwOnly, deletedOnly, keywords]);
 
-    const hasFilters = dateFrom || dateTo || subreddit.trim() || !showNsfw;
+    const hasFilters = dateFrom || dateTo || subreddit.trim() || nsfwOnly || deletedOnly || keywords.trim();
 
     // A blocked account should be indistinguishable from one the archives simply
     // have nothing for. Announcing the block leaks that the person asked to be
@@ -2109,11 +2311,19 @@ export default function App() {
         setDateFrom("");
         setDateTo("");
         setSubreddit("");
-        setShowNsfw(true);
+        setNsfwOnly(false);
+        setDeletedOnly(false);
+        setKeywords("");
         setAppliedSubreddit("");
         if (!query) return;
         await fetchOrDecoy(query, {});
     }, [query, posts, comments]);
+
+    const applyFilters = useCallback(async () => {
+        if (!query) return;
+        setAppliedSubreddit(subreddit.trim());
+        await fetchOrDecoy(query, buildFilters());
+    }, [query, subreddit, buildFilters, posts, comments]);
 
     const active = activeTab === "posts" ? posts : comments;
     const allSources = [...new Set([...posts.sources, ...comments.sources])];
@@ -2217,7 +2427,7 @@ export default function App() {
                 <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
                     <button
                         aria-label={searched ? "Back to homepage" : "Go to homepage"}
-                        onClick={() => { setSearched(false); setUsername(""); setQuery(""); setDateFrom(""); setDateTo(""); setSubreddit(""); setShowNsfw(true); window.history.pushState({}, "", "/"); }}
+                        onClick={() => { setSearched(false); setUsername(""); setQuery(""); setDateFrom(""); setDateTo(""); setSubreddit(""); setNsfwOnly(false); setDeletedOnly(false); setKeywords(""); window.history.pushState({}, "", "/"); }}
                         className="logo-btn group flex items-center gap-2 relative"
                     >
                         <picture>
@@ -2294,7 +2504,7 @@ export default function App() {
                                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#cccccc] text-sm font-medium select-none">u/</span>
                                 <input aria-label="Reddit username" type="text" value={username} onChange={(e) => setUsername(e.target.value)}
                                        placeholder="username"
-                                       className="w-full bg-[#1a1a1b] border border-[#343536] rounded pl-8 pr-3 py-2.5 text-sm text-white placeholder-[#818384] focus:outline-none focus:border-[#ff4500] transition-colors"
+                                       className="w-full bg-[#1a1a1b] border border-[#343536] rounded pl-8 pr-3 py-2.5 text-base sm:text-sm text-white placeholder-[#818384] focus:outline-none focus:border-[#ff4500] transition-colors"
                                        autoFocus />
                             </div>
                             <button type="submit" disabled={!username.trim() || initialLoading}
@@ -2330,22 +2540,7 @@ export default function App() {
                             {showAdvancedFilters && (
                                 <div className="w-full flex flex-col gap-2 mt-1 items-start">
                                     <div className="flex flex-wrap items-center gap-2">
-                                        <span className="text-[11px] text-[#818384]">From</span>
-                                        <input
-                                            aria-label="Date from"
-                                            type="date"
-                                            value={dateFrom}
-                                            onChange={(e) => setDateFrom(e.target.value)}
-                                            className="bg-[#1a1a1b] border border-[#343536] rounded-sm px-2 py-1 text-[12px] text-[#d7dadc] focus:outline-none focus:border-[#ff4500] transition-colors [color-scheme:dark]"
-                                        />
-                                        <span className="text-[11px] text-[#818384]">To</span>
-                                        <input
-                                            aria-label="Date to"
-                                            type="date"
-                                            value={dateTo}
-                                            onChange={(e) => setDateTo(e.target.value)}
-                                            className="bg-[#1a1a1b] border border-[#343536] rounded-sm px-2 py-1 text-[12px] text-[#d7dadc] focus:outline-none focus:border-[#ff4500] transition-colors [color-scheme:dark]"
-                                        />
+                                        <DateRangeControl dateFrom={dateFrom} dateTo={dateTo} setDateFrom={setDateFrom} setDateTo={setDateTo} />
                                         <div className="flex items-center gap-2 w-full sm:w-auto">
                                         <span className="text-[11px] text-[#818384]">in</span>
                                         <div className="relative">
@@ -2356,19 +2551,31 @@ export default function App() {
                                                 value={subreddit}
                                                 onChange={(e) => setSubreddit(e.target.value.replace(/^r\//, ""))}
                                                 placeholder="subreddit"
-                                                className="bg-[#1a1a1b] border border-[#343536] rounded pl-8 pr-3 py-1 text-[12px] text-white placeholder-[#818384] focus:outline-none focus:border-[#ff4500] transition-colors"
+                                                className="bg-[#1a1a1b] border border-[#343536] rounded pl-8 pr-3 py-1 text-[16px] sm:text-[12px] text-white placeholder-[#818384] focus:outline-none focus:border-[#ff4500] transition-colors"
                                             />
                                         </div>
                                         </div>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-3">
                                         <label className="flex items-center gap-1.5 cursor-pointer select-none">
                                             <input
                                                 type="checkbox"
-                                                checked={showNsfw}
-                                                onChange={(e) => setShowNsfw(e.target.checked)}
+                                                checked={nsfwOnly}
+                                                onChange={(e) => setNsfwOnly(e.target.checked)}
                                                 className="w-3.5 h-3.5 accent-[#ff4500] cursor-pointer"
                                             />
-                                            <span className="text-[11px] text-[#818384]">Show NSFW</span>
+                                            <span className="text-[11px] text-[#818384]">NSFW only</span>
                                         </label>
+                                        <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                                            <input
+                                                type="checkbox"
+                                                checked={deletedOnly}
+                                                onChange={(e) => setDeletedOnly(e.target.checked)}
+                                                className="w-3.5 h-3.5 accent-[#ff4500] cursor-pointer"
+                                            />
+                                            <span className="text-[11px] text-[#818384]">Deleted only</span>
+                                        </label>
+                                        <KeywordsInput keywords={keywords} setKeywords={setKeywords} className="w-[180px]" />
                                     </div>
                                 </div>
                             )}
@@ -2397,11 +2604,23 @@ export default function App() {
                     </div>
                 )}
 
+                {/* Desktop-only, on every screen including the landing page:
+                    fixed to the right edge, vertically centered. Only 600px
+                    tall skyscrapers serve here, exactly filling the zone's
+                    600px min-height (index.html); justify-center keeps any
+                    shorter creative centered in the box regardless. */}
+                {isSquareAdViewport && (
+                    <div className="fixed right-4 top-1/2 -translate-y-1/2 z-30">
+                        <AdZone zone={AD_ZONES.desktopSquare} square
+                                className="flex flex-col justify-center" />
+                    </div>
+                )}
+
                 {searched && (searchBlocked || !arcticIsDown) && (
-                    <div className="max-w-3xl mx-auto px-4 mt-6 pb-16">
+                    <div className="max-w-3xl mx-auto px-4 mt-4 pb-16">
                         {!initialLoading && (
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
-                                <div className="text-[12px] text-[#818384] pt-1">
+                            <div className="flex items-center justify-between gap-2 mb-4">
+                                <div className="text-[12px] text-[#818384]">
                                     <p>
                                         Results for <span className="text-[#ff4500] font-medium">u/{query}</span>
                                         {allSources.length > 0 && (
@@ -2425,18 +2644,77 @@ export default function App() {
                                         <p className="text-[#818384] mt-0.5">in <span className="text-[#ff4500] font-medium">r/{appliedSubreddit}</span></p>
                                     )}
                                 </div>
-                                <div className="flex flex-wrap items-center gap-2 ml-auto">
-                                    <span className="text-[11px] text-[#818384]">From</span>
-                                    <input aria-label="Date from" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
-                                           className="bg-[#1a1a1b] border border-[#343536] rounded-sm px-2 py-1 text-[12px] text-[#d7dadc] focus:outline-none focus:border-[#ff4500] transition-colors [color-scheme:dark]" />
-                                    <span className="text-[11px] text-[#818384]">To</span>
-                                    <input aria-label="Date to" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
-                                           className="bg-[#1a1a1b] border border-[#343536] rounded-sm px-2 py-1 text-[12px] text-[#d7dadc] focus:outline-none focus:border-[#ff4500] transition-colors [color-scheme:dark]" />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowResultsFilters(f => !f)}
+                                    className="flex items-center gap-1.5 ml-auto text-[12px] text-[#818384] hover:text-[#d7dadc] transition-colors"
+                                >
+                                    Filters
+                                    <svg aria-hidden="true" className={`w-3 h-3 transition-transform duration-200 ${showResultsFilters ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </button>
+                            </div>
+                        )}
+                        {!initialLoading && showResultsFilters && (
+                            <div className="flex flex-wrap items-center gap-2 mb-4">
+                                <DateRangeControl dateFrom={dateFrom} dateTo={dateTo} setDateFrom={setDateFrom} setDateTo={setDateTo} />
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[11px] text-[#818384]">in</span>
+                                    <div className="relative">
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#818384] text-sm font-medium select-none">r/</span>
+                                        <input
+                                            aria-label="Filter by subreddit"
+                                            type="text"
+                                            value={subreddit}
+                                            onChange={(e) => setSubreddit(e.target.value.replace(/^r\//, ""))}
+                                            placeholder="subreddit"
+                                            className="w-[150px] bg-[#1a1a1b] border border-[#343536] rounded pl-8 pr-3 py-1 text-[16px] sm:text-[12px] text-white placeholder-[#818384] focus:outline-none focus:border-[#ff4500] transition-colors"
+                                        />
+                                    </div>
+                                </div>
+                                {/* w-full on mobile forces the two checkboxes onto
+                                    their own shared line; sm+ keeps them inline. */}
+                                <div className="flex items-center gap-3 w-full sm:w-auto sm:gap-2">
+                                    <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                                        <input
+                                            type="checkbox"
+                                            checked={deletedOnly}
+                                            onChange={(e) => setDeletedOnly(e.target.checked)}
+                                            className="w-3.5 h-3.5 accent-[#ff4500] cursor-pointer"
+                                        />
+                                        <span className="text-[11px] text-[#818384]">Deleted only</span>
+                                    </label>
+                                    <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                                        <input
+                                            type="checkbox"
+                                            checked={nsfwOnly}
+                                            onChange={(e) => setNsfwOnly(e.target.checked)}
+                                            className="w-3.5 h-3.5 accent-[#ff4500] cursor-pointer"
+                                        />
+                                        <span className="text-[11px] text-[#818384]">NSFW only</span>
+                                    </label>
+                                </div>
+                                <div className="w-full sm:w-auto sm:ml-auto flex items-center gap-2">
+                                    <button onClick={applyFilters} disabled={initialLoading}
+                                            className="ml-auto px-3 py-1 text-[12px] font-medium text-[#ff4500] hover:text-[#ff6a33] border border-[#343536] hover:border-[#ff4500] disabled:opacity-50 rounded-sm transition-colors">
+                                        Apply
+                                    </button>
                                     <button onClick={clearFilters} disabled={initialLoading}
                                             className="px-3 py-1 text-[12px] font-medium text-[#818384] hover:text-[#d7dadc] border border-[#343536] hover:border-[#818384] disabled:opacity-50 rounded-sm transition-colors">
                                         Clear
                                     </button>
                                 </div>
+                            </div>
+                        )}
+
+                        {/* Mobile-only, below the results header so it doesn't
+                            push "Results for" away from the search bar; desktop
+                            gets the in-between unit and the fixed skyscraper
+                            instead. */}
+                        {isMobileViewport && (
+                            <div className="flex justify-center mb-4">
+                                <AdZone zone={AD_ZONES.topBanner} />
                             </div>
                         )}
 
@@ -2477,16 +2755,13 @@ export default function App() {
                         </div>
 
                         {!initialLoading && (
-                            <div className="flex items-start justify-between gap-3 mb-3">
-                                <div className="text-[11px] text-[#818384] leading-relaxed">
-                                    Archive coverage may vary.{" "}
-                                    <a href={`https://www.reddit.com/search/?q=author%3A%22${query}%22&type=${activeTab}`}
-                                       target="_blank" rel="noopener noreferrer" className="text-[#ff4500] hover:underline">
-                                        Click here
-                                    </a>{" "}
-                                    to search Reddit directly for the most recent activity.
-                                    <br />
-                                    <span className="text-[#5a5a5b]">Note: Doing so will not show deleted posts or comments.</span>
+                            <div className="flex items-center justify-between gap-3 mb-3">
+                                <div className="flex items-center gap-2 flex-1 max-w-[300px]">
+                                    <KeywordsInput keywords={keywords} setKeywords={setKeywords} onEnter={applyFilters} className="w-full" />
+                                    <button onClick={applyFilters} disabled={initialLoading}
+                                            className="flex-shrink-0 px-2 py-1 text-[11px] text-[#818384] hover:text-[#d7dadc] border border-[#343536] hover:border-[#818384] disabled:opacity-50 rounded transition-colors">
+                                        Apply
+                                    </button>
                                 </div>
                                 <select
                                     aria-label="Sort order"
@@ -2525,10 +2800,17 @@ export default function App() {
                                                 sortOrder === "asc" ? a.created_utc - b.created_utc :
                                                     (b.score ?? 0) - (a.score ?? 0)
                                         )
-                                        .map((post) => (
-                                            <CardBoundary key={post.id}>
-                                                <PostCard post={post} />
-                                            </CardBoundary>
+                                        .map((post, i) => (
+                                            <Fragment key={post.id}>
+                                                {i % 15 === 8 && (
+                                                    <div className="flex justify-center py-1">
+                                                        <AdZone zone={AD_ZONES.inbetweenResults} />
+                                                    </div>
+                                                )}
+                                                <CardBoundary>
+                                                    <PostCard post={post} />
+                                                </CardBoundary>
+                                            </Fragment>
                                         ))}
                                     {activeTab === "comments" && [...comments.items]
                                         .sort((a, b) =>
@@ -2536,10 +2818,17 @@ export default function App() {
                                                 sortOrder === "asc" ? a.created_utc - b.created_utc :
                                                     (b.score ?? 0) - (a.score ?? 0)
                                         )
-                                        .map((comment) => (
-                                            <CardBoundary key={comment.id}>
-                                                <CommentCard comment={comment} />
-                                            </CardBoundary>
+                                        .map((comment, i) => (
+                                            <Fragment key={comment.id}>
+                                                {i % 15 === 8 && (
+                                                    <div className="flex justify-center py-1">
+                                                        <AdZone zone={AD_ZONES.inbetweenResults} />
+                                                    </div>
+                                                )}
+                                                <CardBoundary>
+                                                    <CommentCard comment={comment} />
+                                                </CardBoundary>
+                                            </Fragment>
                                         ))}
                                 </div>
                                 <Pagination
