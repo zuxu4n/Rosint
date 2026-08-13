@@ -80,6 +80,19 @@
       bsa_optimize.src='https://cdn4.buysellads.net/pub/rosint.js?'+(new Date()-new Date()%600000);
       (document.getElementsByTagName('head')[0]||document.getElementsByTagName('body')[0]).appendChild(bsa_optimize);
     })();
+
+    // BSA fixed footer: optimize.js injects the .bsa_fixed-leaderboard
+    // container itself; once it exists, push its zone so the ad call is
+    // made on mobile as well as desktop (per BSA's updated head tag).
+    var optimizeFixedFooterCheck = setInterval(function() {
+      if (document.querySelector('.bsa_fixed-leaderboard')) {
+          clearInterval(optimizeFixedFooterCheck);
+          window.optimize = window.optimize || { queue: [] };
+            window.optimize.queue.push(function() {
+            window.optimize.push('bsa-zone_1786024637180-4_123456');
+        });
+      }
+    }, 300); // check every 300ms
   </script>
 </head>
 <body>

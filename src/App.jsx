@@ -2116,12 +2116,14 @@ function AdZone({ zone, className = "", zoneClassName = "", square = false }) {
     // slot stays visible for preview.
     const [unfilled, setUnfilled] = useState(false);
     useEffect(() => {
-        // pushAll throws inside optimize.js when it has no zone config for the
-        // domain (e.g. localhost). An ad failure must never crash the app.
-        const rescan = () => { try { window.optimize.pushAll(); } catch { /* ads unavailable */ } };
+        // Per-zone push, matching BSA's updated body tags. queue.push works
+        // both before init (queued) and after (executes synchronously, per
+        // their docs), so no readiness check is needed. push throws inside
+        // optimize.js when it has no zone config for the domain (e.g.
+        // localhost); an ad failure must never crash the app.
+        const id = idRef.current;
         const o = (window.optimize = window.optimize || { queue: [] });
-        if (typeof o.pushAll === "function") rescan();
-        else o.queue.push(rescan);
+        o.queue.push(() => { try { window.optimize.push(id); } catch { /* ads unavailable */ } });
 
         const el = elRef.current;
         const check = () => setUnfilled(el.childElementCount === 0);
