@@ -83,14 +83,18 @@
 
     // BSA fixed footer: optimize.js injects the .bsa_fixed-leaderboard
     // container itself; once it exists, push its zone so the ad call is
-    // made on mobile as well as desktop (per BSA's updated head tag).
+    // made (per BSA's updated head tag). Mobile only - the desktop page
+    // already carries the skyscraper and in-between units, so the fixed
+    // footer is not wanted there.
     var optimizeFixedFooterCheck = setInterval(function() {
       if (document.querySelector('.bsa_fixed-leaderboard')) {
           clearInterval(optimizeFixedFooterCheck);
-          window.optimize = window.optimize || { queue: [] };
-            window.optimize.queue.push(function() {
-            window.optimize.push('bsa-zone_1786024637180-4_123456');
-        });
+          if (window.matchMedia("(max-width: 879px)").matches) {
+              window.optimize = window.optimize || { queue: [] };
+              window.optimize.queue.push(function() {
+                  window.optimize.push('bsa-zone_1786024637180-4_123456');
+              });
+          }
       }
     }, 300); // check every 300ms
   </script>
