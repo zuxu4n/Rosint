@@ -1978,10 +1978,14 @@ const TABS = ["posts", "comments"];
 // initial page load. Which sizes serve per zone is decided by BSA's viewport
 // config, so the same zone renders a small banner on mobile and a leaderboard
 // on desktop; the square zone has no sizes below 990px and stays empty there.
+// Full placement ids exactly as BSA issued them — the trailing _123456 is
+// part of the id, not an example. Cloned instances append _<n> after it
+// (bsa-zone_…-9_123456_1), which is BSA's documented cloned-container format;
+// pushing an id without the _123456 part produces no ad call at all.
 const AD_ZONES = {
-    inbetweenResults: "bsa-zone_1786468159516-9",
-    topBanner: "bsa-zone_1786468046487-4",
-    desktopSquare: "bsa-zone_1786468257501-4",
+    inbetweenResults: "bsa-zone_1786468159516-9_123456",
+    topBanner: "bsa-zone_1786468046487-4_123456",
+    desktopSquare: "bsa-zone_1786468257501-4_123456",
 };
 
 // Dev-only filler so placement and size can be previewed locally, where BSA
