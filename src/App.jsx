@@ -1984,7 +1984,6 @@ const TABS = ["posts", "comments"];
 // pushing an id without the _123456 part produces no ad call at all.
 const AD_ZONES = {
     inbetweenResults: "bsa-zone_1786468159516-9_123456",
-    topBanner: "bsa-zone_1786468046487-4_123456",
     desktopSquare: "bsa-zone_1786468257501-4_123456",
 };
 
@@ -2131,7 +2130,10 @@ function AdZone({ zone, className = "", zoneClassName = "", square = false }) {
 
         const el = elRef.current;
         const check = () => setUnfilled(el.childElementCount === 0);
-        const timer = setTimeout(check, 4000);
+        // 8s grace: BSA fills land at init (<2s), but their script skips
+        // zero-size containers, so hiding too early would permanently block
+        // a slow fill (e.g. throttled mobile connections).
+        const timer = setTimeout(check, 8000);
         const obs = new MutationObserver(check);
         obs.observe(el, { childList: true });
         return () => { clearTimeout(timer); obs.disconnect(); };
@@ -2166,7 +2168,6 @@ export default function App() {
     const [showResultsFilters, setShowResultsFilters] = useState(false);
     const [suggestionIdx, setSuggestionIdx] = useState(0);
     const EXAMPLE_USERS = ["spez", "GallowBoob", "Unidan", "kn0thing"];
-    const isMobileViewport = useMediaQuery("(max-width: 879px)");
     const isSquareAdViewport = useMediaQuery("(min-width: 990px)");
 
     // ?dino in the URL forces the maintenance screen (which hosts the dino game)
@@ -2714,14 +2715,6 @@ export default function App() {
                                     </button>
                                 </div>
                             </div>
-                        )}
-
-                        {/* Mobile-only, below the results header so it doesn't
-                            push "Results for" away from the search bar; desktop
-                            gets the in-between unit and the fixed skyscraper
-                            instead. */}
-                        {isMobileViewport && (
-                            <AdZone zone={AD_ZONES.topBanner} className="flex justify-center mb-4" />
                         )}
 
                         {/* key remounts the card per user so stale stats never flash.

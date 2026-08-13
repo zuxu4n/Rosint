@@ -69,6 +69,8 @@
       div[id^="bsa-zone_1786468159516-9"],
       div[id^="bsa-zone_1786468046487-4"] {
         min-height: 100px;
+        min-width: 300px;
+        max-width: 100%;
       }
     }
     @media only screen and (min-width: 880px) and (min-height: 0px) {
@@ -87,22 +89,6 @@
       (document.getElementsByTagName('head')[0]||document.getElementsByTagName('body')[0]).appendChild(bsa_optimize);
     })();
 
-    // BSA fixed footer: optimize.js injects the .bsa_fixed-leaderboard
-    // container itself; once it exists, push its zone so the ad call is
-    // made (per BSA's updated head tag). Mobile only - the desktop page
-    // already carries the skyscraper and in-between units, so the fixed
-    // footer is not wanted there.
-    var optimizeFixedFooterCheck = setInterval(function() {
-      if (document.querySelector('.bsa_fixed-leaderboard')) {
-          clearInterval(optimizeFixedFooterCheck);
-          if (window.matchMedia("(max-width: 879px)").matches) {
-              window.optimize = window.optimize || { queue: [] };
-              window.optimize.queue.push(function() {
-                  window.optimize.push('bsa-zone_1786024637180-4_123456');
-              });
-          }
-      }
-    }, 300); // check every 300ms
   </script>
 </head>
 <body>
