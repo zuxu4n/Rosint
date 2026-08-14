@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo, useRef, Component, Fragment } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef, Component } from "react";
 import { normalizeUsername } from "./normalizeUsername.js";
 
 // ─── API Config ───────────────────────────────────────────────────────────────
@@ -1971,65 +1971,6 @@ function DinoGame() {
 
 const TABS = ["posts", "comments"];
 
-// ─── Ads (BuySellAds) ─────────────────────────────────────────────────────────
-// The optimize.js loader lives in index.html. BSA fills zones by id prefix
-// (div[id^="bsa-zone_…"]), so each mount gets a unique suffix, and pushAll()
-// asks BSA to rescan the DOM — needed in an SPA where zones appear after the
-// initial page load. Which sizes serve per zone is decided by BSA's viewport
-// config, so the same zone renders a small banner on mobile and a leaderboard
-// on desktop; the square zone has no sizes below 990px and stays empty there.
-// Full placement ids exactly as BSA issued them — the trailing _123456 is
-// part of the id, not an example. Cloned instances append _<n> after it
-// (bsa-zone_…-9_123456_1), which is BSA's documented cloned-container format;
-// pushing an id without the _123456 part produces no ad call at all.
-const AD_ZONES = {
-    inbetweenResults: "bsa-zone_1786468159516-9_123456",
-    desktopSquare: "bsa-zone_1786468257501-4_123456",
-};
-
-// Dev-only filler so placement and size can be previewed locally, where BSA
-// refuses to serve (localhost isn't an approved domain). Mirrors the real
-// creative sizes per breakpoint; production ships the bare zone div.
-// Only the skyscraper sizes are used in the BSA zone config.
-const SQUARE_AD_SIZES = [[120, 600], [160, 600]];
-function AdPlaceholder({ square = false }) {
-    // Click the square placeholder to cycle through every size BSA can serve
-    // in that zone, to preview how each sits in the corner.
-    const [sizeIdx, setSizeIdx] = useState(0);
-    if (square) {
-        const [w, h] = SQUARE_AD_SIZES[sizeIdx];
-        return (
-            <div onClick={() => setSizeIdx((i) => (i + 1) % SQUARE_AD_SIZES.length)}
-                 style={{ width: w, height: h }}
-                 className="flex items-center justify-center border border-dashed border-[#343536] bg-[#1a1a1b] text-[11px] text-[#818384] select-none cursor-pointer">
-                Ad · {w}×{h}
-            </div>
-        );
-    }
-    return (
-        <div className="flex items-center justify-center border border-dashed border-[#343536] bg-[#1a1a1b] text-[11px] text-[#818384] select-none w-[468px] h-[60px] min-[880px]:w-[728px] min-[880px]:h-[90px] max-w-full">
-            <span className="min-[880px]:hidden">Ad · 468×60</span>
-            <span className="hidden min-[880px]:inline">Ad · 728×90</span>
-        </div>
-    );
-}
-
-// Viewport gates matching BSA's own breakpoints (880px for the banner zones,
-// 990px for the square zone). Zones that shouldn't exist at a given size are
-// unmounted entirely rather than CSS-hidden: hiding a zone the script already
-// filled would serve invisible impressions, which ad networks treat as a
-// policy violation.
-function useMediaQuery(query) {
-    const [matches, setMatches] = useState(() => window.matchMedia(query).matches);
-    useEffect(() => {
-        const mq = window.matchMedia(query);
-        const onChange = (e) => setMatches(e.matches);
-        mq.addEventListener("change", onChange);
-        return () => mq.removeEventListener("change", onChange);
-    }, [query]);
-    return matches;
-}
-
 // Keyword filter input with a search-bar style clear X (shown while non-empty).
 // Used on the landing Advanced filters and above the results next to the sort.
 function KeywordsInput({ keywords, setKeywords, onEnter, className = "" }) {
@@ -2103,50 +2044,6 @@ function DateRangeControl({ dateFrom, dateTo, setDateFrom, setDateTo }) {
     );
 }
 
-let bsaInstance = 0;
-function AdZone({ zone, className = "", zoneClassName = "", square = false }) {
-    const idRef = useRef(null);
-    const elRef = useRef(null);
-    if (!idRef.current) idRef.current = `${zone}_${++bsaInstance}`;
-    // With an ad blocker (or a no-fill), the zone div stays empty but its CSS
-    // min-height (index.html), the slot's own padding/margins, and the parent
-    // list's flex gap all still reserve space — a visible void between results.
-    // If the zone has no children after a grace period, hide the entire slot:
-    // display:none children are skipped by flex layout, so no gap remains.
-    // Hiding applies only while the zone is EMPTY (never a served impression),
-    // and the MutationObserver reopens the slot the moment content arrives.
-    // In dev the placeholder counts as content, which is what we want — the
-    // slot stays visible for preview.
-    const [unfilled, setUnfilled] = useState(false);
-    useEffect(() => {
-        // Per-zone push, matching BSA's updated body tags. queue.push works
-        // both before init (queued) and after (executes synchronously, per
-        // their docs), so no readiness check is needed. push throws inside
-        // optimize.js when it has no zone config for the domain (e.g.
-        // localhost); an ad failure must never crash the app.
-        const id = idRef.current;
-        const o = (window.optimize = window.optimize || { queue: [] });
-        o.queue.push(() => { try { window.optimize.push(id); } catch { /* ads unavailable */ } });
-
-        const el = elRef.current;
-        const check = () => setUnfilled(el.childElementCount === 0);
-        // 8s grace: BSA fills land at init (<2s), but their script skips
-        // zero-size containers, so hiding too early would permanently block
-        // a slow fill (e.g. throttled mobile connections).
-        const timer = setTimeout(check, 8000);
-        const obs = new MutationObserver(check);
-        obs.observe(el, { childList: true });
-        return () => { clearTimeout(timer); obs.disconnect(); };
-    }, []);
-    return (
-        <div className={className} style={unfilled ? { display: "none" } : undefined}>
-            <div id={idRef.current} ref={elRef} className={zoneClassName}>
-                {import.meta.env.DEV && <AdPlaceholder square={square} />}
-            </div>
-        </div>
-    );
-}
-
 export default function App() {
     const [username, setUsername] = useState("");
     const [query, setQuery] = useState("");
@@ -2168,7 +2065,6 @@ export default function App() {
     const [showResultsFilters, setShowResultsFilters] = useState(false);
     const [suggestionIdx, setSuggestionIdx] = useState(0);
     const EXAMPLE_USERS = ["spez", "GallowBoob", "Unidan", "kn0thing"];
-    const isSquareAdViewport = useMediaQuery("(min-width: 990px)");
 
     // ?dino in the URL forces the maintenance screen (which hosts the dino game)
     // so it can be tested without waiting for a real Arctic Shift outage.
@@ -2614,17 +2510,6 @@ export default function App() {
                     </div>
                 )}
 
-                {/* Desktop-only, on every screen including the landing page:
-                    fixed to the right edge, vertically centered. Only 600px
-                    tall skyscrapers serve here, exactly filling the zone's
-                    600px min-height (index.html); justify-center keeps any
-                    shorter creative centered in the box regardless. */}
-                {isSquareAdViewport && (
-                    <AdZone zone={AD_ZONES.desktopSquare} square
-                            className="fixed right-4 top-1/2 -translate-y-1/2 z-30"
-                            zoneClassName="flex flex-col justify-center" />
-                )}
-
                 {searched && (searchBlocked || !arcticIsDown) && (
                     <div className="max-w-3xl mx-auto px-4 mt-4 pb-16">
                         {!initialLoading && (
@@ -2799,15 +2684,10 @@ export default function App() {
                                                 sortOrder === "asc" ? a.created_utc - b.created_utc :
                                                     (b.score ?? 0) - (a.score ?? 0)
                                         )
-                                        .map((post, i) => (
-                                            <Fragment key={post.id}>
-                                                {i % 15 === 8 && (
-                                                    <AdZone zone={AD_ZONES.inbetweenResults} className="flex justify-center py-1" />
-                                                )}
-                                                <CardBoundary>
-                                                    <PostCard post={post} />
-                                                </CardBoundary>
-                                            </Fragment>
+                                        .map((post) => (
+                                            <CardBoundary key={post.id}>
+                                                <PostCard post={post} />
+                                            </CardBoundary>
                                         ))}
                                     {activeTab === "comments" && [...comments.items]
                                         .sort((a, b) =>
@@ -2815,15 +2695,10 @@ export default function App() {
                                                 sortOrder === "asc" ? a.created_utc - b.created_utc :
                                                     (b.score ?? 0) - (a.score ?? 0)
                                         )
-                                        .map((comment, i) => (
-                                            <Fragment key={comment.id}>
-                                                {i % 15 === 8 && (
-                                                    <AdZone zone={AD_ZONES.inbetweenResults} className="flex justify-center py-1" />
-                                                )}
-                                                <CardBoundary>
-                                                    <CommentCard comment={comment} />
-                                                </CardBoundary>
-                                            </Fragment>
+                                        .map((comment) => (
+                                            <CardBoundary key={comment.id}>
+                                                <CommentCard comment={comment} />
+                                            </CardBoundary>
                                         ))}
                                 </div>
                                 <Pagination
