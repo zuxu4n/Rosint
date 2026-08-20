@@ -707,8 +707,7 @@ const ADSTERRA_MOBILE  = { key: "5e82b1aa83c800fb66617abf14abebc7", width: 320, 
 // so the 728px desktop banner only fits from a 768px viewport up. Below that,
 // the 320px mobile zone is the widest unit that fits.
 const ADSTERRA_MOBILE_QUERY = "(max-width: 767px)";
-const AD_INTERVAL = 6;       // one ad slot before every Nth result
-const MAX_ADS_PER_PAGE = 5;  // cap third-party loads on a full 100-item page
+const AD_INTERVAL = 6; // one ad slot before every Nth result, all the way down the page
 
 // Adsterra's invoke.js uses document.write, which only works safely inside its
 // own document — each instance gets its own iframe so multiple ad slots on one
@@ -757,10 +756,27 @@ function useIsMobileViewport() {
     return isMobile;
 }
 
+// Mounts the ad iframe only once the slot is within ~800px of the viewport,
+// so a long results page doesn't fire impressions for slots the user never
+// scrolls near (which tanks viewability stats). Once mounted, it stays.
 function AdCard({ zone }) {
+    const ref = useRef(null);
+    const [visible, setVisible] = useState(false);
+
+    useEffect(() => {
+        if (visible) return;
+        const el = ref.current;
+        if (!el) return;
+        const obs = new IntersectionObserver(([entry]) => {
+            if (entry.isIntersecting) setVisible(true);
+        }, { rootMargin: "800px 0px" });
+        obs.observe(el);
+        return () => obs.disconnect();
+    }, [visible]);
+
     return (
-        <div className="overflow-x-auto">
-            <AdBanner key={zone.key} zone={zone} />
+        <div ref={ref} className="overflow-x-auto" style={{ minHeight: zone.height }}>
+            {visible && <AdBanner key={zone.key} zone={zone} />}
         </div>
     );
 }
@@ -2789,9 +2805,7 @@ export default function App() {
                                                         : <CommentCard comment={item} />}
                                                 </CardBoundary>
                                             );
-                                            // An ad slot before every AD_INTERVAL-th result, capped so a
-                                            // full 100-item page doesn't mount two dozen third-party iframes.
-                                            const showAd = i > 0 && i % AD_INTERVAL === 0 && i / AD_INTERVAL <= MAX_ADS_PER_PAGE;
+                                            const showAd = i > 0 && i % AD_INTERVAL === 0;
                                             return showAd
                                                 ? [
                                                     <CardBoundary key={`ad-${activeTab}-${i}`}>
