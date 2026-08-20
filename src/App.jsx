@@ -738,7 +738,6 @@ function AdBanner({ zone }) {
             width={zone.width}
             height={zone.height}
             scrolling="no"
-            loading="lazy"
             tabIndex={-1}
             style={{ border: "none", overflow: "hidden", display: "block", margin: "0 auto", flexShrink: 0 }}
         />
