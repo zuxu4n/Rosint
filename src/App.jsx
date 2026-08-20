@@ -367,15 +367,30 @@ function getCommentImage(comment) {
     return null;
 }
 
-async function safeFetch(url) {
+const SAFE_FETCH_RETRY_DELAY_MS = 1500;
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// A single automatic retry after a short delay, but only for failures that can
+// plausibly clear on their own: 429 rate limits, 5xx, and network errors.
+// Deterministic 4xx (404s, Arctic's 422 keyword rejection for very active
+// users) fail fast so fetchBoth can degrade to PullPush immediately instead of
+// stalling behind a doomed second request.
+async function safeFetch(url, { retry = true } = {}) {
+    let retryable = true;
     try {
         const res = await fetch(url, { headers: { Accept: "application/json" } });
-        if (!res.ok) return { data: [], ok: false };
-        const json = await res.json();
-        return { data: json?.data ?? [], ok: true };
-    } catch {
-        return { data: [], ok: false };
+        if (res.ok) {
+            const json = await res.json();
+            return { data: json?.data ?? [], ok: true };
+        }
+        retryable = res.status === 429 || res.status >= 500;
+    } catch { /* network error — retryable */ }
+    if (retry && retryable) {
+        await sleep(SAFE_FETCH_RETRY_DELAY_MS);
+        return safeFetch(url, { retry: false });
     }
+    return { data: [], ok: false };
 }
 
 async function fetchTimeSeries(key, { precision = "hour", hours = 24 } = {}) {
@@ -389,17 +404,11 @@ async function fetchTimeSeries(key, { precision = "hour", hours = 24 } = {}) {
         `&after=${after}` +
         `&before=${before}`;
 
-    try {
-        const res = await fetch(url, { headers: { Accept: "application/json" } });
-        if (!res.ok) return [];
-        const json = await res.json();
-        return (json?.data ?? []).map((p) => ({
-            date: new Date(p.date * 1000),
-            value: p.value,
-        }));
-    } catch {
-        return [];
-    }
+    const { data } = await safeFetch(url);
+    return data.map((p) => ({
+        date: new Date(p.date * 1000),
+        value: p.value,
+    }));
 }
 
 function formatChartTick(date, precision, spanHours = 24) {
@@ -692,6 +701,71 @@ function StatusBadges({ item, type }) {
 
 // ─── Post Card ────────────────────────────────────────────────────────────────
 
+const ADSTERRA_DESKTOP = { key: "f37be9380936d013550d2030d6b5fc04", width: 728, height: 90 };
+const ADSTERRA_MOBILE  = { key: "5e82b1aa83c800fb66617abf14abebc7", width: 320, height: 50 };
+// 767px, not Tailwind's sm (639px): the results column is min(768, vw) - 32px,
+// so the 728px desktop banner only fits from a 768px viewport up. Below that,
+// the 320px mobile zone is the widest unit that fits.
+const ADSTERRA_MOBILE_QUERY = "(max-width: 767px)";
+const AD_INTERVAL = 6;       // one ad slot before every Nth result
+const MAX_ADS_PER_PAGE = 5;  // cap third-party loads on a full 100-item page
+
+// Adsterra's invoke.js uses document.write, which only works safely inside its
+// own document — each instance gets its own iframe so multiple ad slots on one
+// page don't clobber each other's atOptions. srcDoc + sandbox (without
+// allow-same-origin) keeps the ad script in an opaque origin: it can't read
+// the parent page (the ?u= username), touch its storage, or navigate it, and
+// the declarative document sidesteps StrictMode double-effects entirely.
+function AdBanner({ zone }) {
+    const srcDoc = `<!DOCTYPE html><html><head><style>body{margin:0;padding:0;overflow:hidden;}</style></head><body>
+        <script data-cfasync="false" type="text/javascript">
+            atOptions = {
+                'key' : '${zone.key}',
+                'format' : 'iframe',
+                'height' : ${zone.height},
+                'width' : ${zone.width},
+                'params' : {}
+            };
+        </script>
+        <script data-cfasync="false" type="text/javascript" src="https://www.highperformanceformat.com/${zone.key}/invoke.js"></script>
+    </body></html>`;
+
+    return (
+        <iframe
+            title="Advertisement"
+            srcDoc={srcDoc}
+            sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation"
+            width={zone.width}
+            height={zone.height}
+            scrolling="no"
+            loading="lazy"
+            tabIndex={-1}
+            style={{ border: "none", overflow: "hidden", display: "block", margin: "0 auto", flexShrink: 0 }}
+        />
+    );
+}
+
+function useIsMobileViewport() {
+    const [isMobile, setIsMobile] = useState(() => window.matchMedia(ADSTERRA_MOBILE_QUERY).matches);
+
+    useEffect(() => {
+        const mq = window.matchMedia(ADSTERRA_MOBILE_QUERY);
+        const handler = (e) => setIsMobile(e.matches);
+        mq.addEventListener("change", handler);
+        return () => mq.removeEventListener("change", handler);
+    }, []);
+
+    return isMobile;
+}
+
+function AdCard({ zone }) {
+    return (
+        <div className="overflow-x-auto">
+            <AdBanner key={zone.key} zone={zone} />
+        </div>
+    );
+}
+
 function PostCard({ post, embedded = false }) {
     const [bodyOpen, setBodyOpen]               = useState(false);
     const [comments, setComments]               = useState(null); // null = not fetched
@@ -707,21 +781,15 @@ function PostCard({ post, embedded = false }) {
     async function handleLoadComments() {
         if (commentsLoading) return;
         setCommentsLoading(true);
-        try {
-            const res  = await fetch(`${ARCTIC}/api/comments/tree?link_id=t3_${post.id}&limit=25`);
-            const json = await res.json();
-            const data = json.data || [];
-            const list = [];
-            let more = null;
-            for (const item of data) {
-                if (item.kind === "t1")        list.push(item.data);
-                else if (item.kind === "more") more = item.data?.count ?? null;
-            }
-            setComments(list);
-            setMoreComments(more);
-        } catch {
-            setComments([]);
+        const { data } = await safeFetch(`${ARCTIC}/api/comments/tree?link_id=t3_${post.id}&limit=25`);
+        const list = [];
+        let more = null;
+        for (const item of data) {
+            if (item.kind === "t1")        list.push(item.data);
+            else if (item.kind === "more") more = item.data?.count ?? null;
         }
+        setComments(list);
+        setMoreComments(more);
         setCommentsOpen(true);
         setCommentsLoading(false);
     }
@@ -890,11 +958,8 @@ function ParentChain({ parentId }) {
     async function handleLoad() {
         if (loading || comment) return;
         setLoading(true);
-        try {
-            const res  = await fetch(`${ARCTIC}/api/comments/ids?ids=${parentId}`);
-            const json = await res.json();
-            if (json.data?.[0]) setComment(json.data[0]);
-        } catch { /* ignore */ }
+        const { data } = await safeFetch(`${ARCTIC}/api/comments/ids?ids=${parentId}`);
+        if (data[0]) setComment(data[0]);
         setLoading(false);
     }
 
@@ -967,36 +1032,30 @@ function CommentCard({ comment, isNested = false, skipPostLoad = false }) {
 
     useEffect(() => {
         if (!threadId || isNested || skipPostLoad) return;
-        fetch(`${ARCTIC}/api/posts/ids?ids=${threadId}`)
-            .then(r => r.json())
-            .then(json => { if (json.data?.[0]) setPost(json.data[0]); })
-            .catch(() => {});
+        let cancelled = false;
+        safeFetch(`${ARCTIC}/api/posts/ids?ids=${threadId}`)
+            .then(({ data }) => { if (!cancelled && data[0]) setPost(data[0]); });
+        return () => { cancelled = true; };
     }, [threadId, isNested, skipPostLoad]);
 
     async function handleLoadReplies() {
         if (!comment.link_id || repliesLoading) return;
         setRepliesLoading(true);
-        try {
-            const res  = await fetch(
-                `${ARCTIC}/api/comments/tree?link_id=${comment.link_id}&parent_id=t1_${comment.id}&limit=25`
-            );
-            const json = await res.json();
-            const data = json.data || [];
-            // The response contains the parent comment at the top level;
-            // its direct children are nested in replies.data.children
-            const parentItem = data.find(item => item.kind === "t1" && item.data?.id === comment.id);
-            const childObjs  = parentItem?.data?.replies?.data?.children || [];
-            const children   = [];
-            let more = null;
-            for (const c of childObjs) {
-                if (c.kind === "t1")        children.push(c.data);
-                else if (c.kind === "more") more = c.data?.count ?? null;
-            }
-            setReplies(children);
-            setMoreCount(more);
-        } catch {
-            setReplies([]);
+        const { data } = await safeFetch(
+            `${ARCTIC}/api/comments/tree?link_id=${comment.link_id}&parent_id=t1_${comment.id}&limit=25`
+        );
+        // The response contains the parent comment at the top level;
+        // its direct children are nested in replies.data.children
+        const parentItem = data.find(item => item.kind === "t1" && item.data?.id === comment.id);
+        const childObjs  = parentItem?.data?.replies?.data?.children || [];
+        const children   = [];
+        let more = null;
+        for (const c of childObjs) {
+            if (c.kind === "t1")        children.push(c.data);
+            else if (c.kind === "more") more = c.data?.count ?? null;
         }
+        setReplies(children);
+        setMoreCount(more);
         setRepliesLoading(false);
     }
 
@@ -1190,7 +1249,8 @@ function UserSummary({ query }) {
         if (!query) return;
         let cancelled = false;
 
-        safeFetch(`${ARCTIC}/api/users/search?author=${encodeURIComponent(query)}&limit=1`)
+        // No retry: this badge row is decorative and hides on failure anyway.
+        safeFetch(`${ARCTIC}/api/users/search?author=${encodeURIComponent(query)}&limit=1`, { retry: false })
             .then((userRes) => {
                 if (cancelled) return;
                 const m = userRes.data?.[0]?._meta;
@@ -1708,21 +1768,30 @@ function usePaginatedFetch(type) {
     const [storedFilters, setStoredFilters] = useState({});
     const [arcticDown, setArcticDown] = useState(false);
 
+    // Guards against a slow response landing after a newer request has already
+    // rendered: only the latest call may write state. The retry in safeFetch
+    // can hold a doomed request open for 1.5s+, which is plenty of time for the
+    // user to have started a different search.
+    const seqRef = useRef(0);
+
     const _fetch = useCallback(async (username, pagination, filters) => {
+        const seq = ++seqRef.current;
         setLoading(true);
         setError(null);
         try {
             const { items: data, sources: srcs, arcticDown: down } = await fetchBoth(username, type, pagination, filters);
+            if (seq !== seqRef.current) return null; // superseded by a newer request
             setItems(data);
             setSources(srcs);
             setArcticDown(down);
             return data;
         } catch (err) {
+            if (seq !== seqRef.current) return null;
             setError(err.message);
             setItems([]);
             return [];
         } finally {
-            setLoading(false);
+            if (seq === seqRef.current) setLoading(false);
         }
     }, [type]);
 
@@ -1731,7 +1800,7 @@ function usePaginatedFetch(type) {
         setPageStack([]);
         setStoredFilters(filters);
         const data = await _fetch(username, {}, filters);
-        if (data.length > 0) {
+        if (data && data.length > 0) {
             setPageStack([{ firstUtc: data[0].created_utc, lastUtc: data[data.length - 1].created_utc }]);
         }
         return data;
@@ -1741,6 +1810,7 @@ function usePaginatedFetch(type) {
         const current = pageStack[pageStack.length - 1];
         if (!current) return;
         const data = await _fetch(username, { before: current.lastUtc }, storedFilters);
+        if (data === null) return; // superseded — don't touch the newer request's state
         if (data.length > 0) {
             setPageStack((prev) => [...prev, { firstUtc: data[0].created_utc, lastUtc: data[data.length - 1].created_utc }]);
             setPage((p) => p + 1);
@@ -1753,6 +1823,7 @@ function usePaginatedFetch(type) {
         const newStack = pageStack.slice(0, -1);
         const prevEntry = newStack[newStack.length - 2];
         const data = await _fetch(username, prevEntry ? { after: prevEntry.firstUtc } : {}, storedFilters);
+        if (data === null) return; // superseded — don't touch the newer request's state
         if (data.length > 0) {
             newStack[newStack.length - 1] = { firstUtc: data[0].created_utc, lastUtc: data[data.length - 1].created_utc };
         }
@@ -1932,7 +2003,9 @@ function DinoGame() {
 
         function onKey(e) {
             const tag = e.target && e.target.tagName;
-            if (tag === "INPUT" || tag === "TEXTAREA") return; // don't hijack the search bar
+            // Don't hijack the search bar — or buttons, where Space must
+            // activate the control (e.g. "Try again" right below the game).
+            if (tag === "INPUT" || tag === "TEXTAREA" || tag === "BUTTON") return;
             if (e.code === "Space" || e.code === "ArrowUp") { e.preventDefault(); jump(); }
         }
         function onPointer(e) {
@@ -2068,8 +2141,11 @@ export default function App() {
 
     // ?dino in the URL forces the maintenance screen (which hosts the dino game)
     // so it can be tested without waiting for a real Arctic Shift outage.
-    const [arcticHealthDown, setArcticHealthDown] = useState(
-        () => new URLSearchParams(window.location.search).has("dino")
+    const [arcticHealthDown, setArcticHealthDown] = useState(false);
+    // ?dino keeps forcing the maintenance screen no matter what searches or
+    // retries do — it's a test hook, so it must not be clearable from the UI.
+    const dinoForced = useMemo(
+        () => new URLSearchParams(window.location.search).has("dino"), []
     );
     const [bannerDismissed, setBannerDismissed] = useState(false);
     const [searchBlocked, setSearchBlocked] = useState(false);
@@ -2077,10 +2153,16 @@ export default function App() {
     const posts = usePaginatedFetch("posts");
     const comments = usePaginatedFetch("comments");
 
-    const arcticIsDown = arcticHealthDown || posts.arcticDown || comments.arcticDown;
+    const arcticIsDown = dinoForced || arcticHealthDown || posts.arcticDown || comments.arcticDown;
+
+    const isMobileViewport = useIsMobileViewport();
+    const adZone = isMobileViewport ? ADSTERRA_MOBILE : ADSTERRA_DESKTOP;
 
     useEffect(() => {
-        safeFetch(`${ARCTIC}/api/posts/search?author=spez&limit=1`)
+        // No retry: this ping only decides whether to show the outage banner,
+        // and a late-arriving failure would yank an already-rendered result
+        // page back to the maintenance screen.
+        safeFetch(`${ARCTIC}/api/posts/search?author=spez&limit=1`, { retry: false })
             .then(({ ok }) => { if (!ok) setArcticHealthDown(true); });
     }, []);
 
@@ -2123,7 +2205,7 @@ export default function App() {
         comments.clear();
         setSearchBlocked(true);
         setInitialLoading(true);
-        await new Promise((r) => setTimeout(r, 1000 + Math.random() * 2000));
+        await sleep(1000 + Math.random() * 2000);
         setInitialLoading(false);
     };
 
@@ -2164,6 +2246,10 @@ export default function App() {
         // Same reason as the deep-link path above: raise the spinner before the
         // async block check so UserSummary can't mount against a blocked name.
         setInitialLoading(true);
+        // A fresh search re-derives outage state from its own fetch — the
+        // one-shot health probe must not keep a stale "down" verdict latched
+        // over results that are about to load fine.
+        setArcticHealthDown(false);
         if (await isBlockedUser(user)) { await runDecoySearch(); return; }
         setSearchBlocked(false);
         setInitialLoading(true);
@@ -2201,6 +2287,11 @@ export default function App() {
     // from state and refetch, so without this a blocked search could be turned
     // into a real one by pressing a button that is still on screen.
     const fetchOrDecoy = async (name, filters) => {
+        // Raise the spinner and clear the stale health verdict in the same
+        // batch, so the maintenance screen hands off to the loading state
+        // instead of flashing an empty result page while isBlockedUser runs.
+        setInitialLoading(true);
+        setArcticHealthDown(false);
         if (await isBlockedUser(name)) { await runDecoySearch(); return; }
         setSearchBlocked(false);
         setInitialLoading(true);
@@ -2503,9 +2594,16 @@ export default function App() {
                                 Sorry about that!
                             </p>
                             <p className="text-[#a8a8a9] text-sm leading-relaxed">
-                                Search is briefly unavailable. This is often just a short hiccup that clears in a few seconds, so try again shortly. If it keeps failing, it may be down for a couple of hours, so check back later.
+                                The site is under a lot of load right now! Please try again in a few seconds. If the error persists, it may be down for a couple of hours.
                             </p>
                             <DinoGame />
+                            <button
+                                onClick={handleRetry}
+                                disabled={initialLoading}
+                                className="mt-4 px-4 py-2 rounded-md bg-[#ff4500] hover:bg-[#fe5301] text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {initialLoading ? "Retrying…" : "Try again"}
+                            </button>
                         </div>
                     </div>
                 )}
@@ -2678,28 +2776,32 @@ export default function App() {
                         ) : (
                             <>
                                 <div className="flex flex-col gap-2">
-                                    {activeTab === "posts" && [...posts.items]
+                                    {[...active.items]
                                         .sort((a, b) =>
                                             sortOrder === "desc" ? b.created_utc - a.created_utc :
                                                 sortOrder === "asc" ? a.created_utc - b.created_utc :
                                                     (b.score ?? 0) - (a.score ?? 0)
                                         )
-                                        .map((post) => (
-                                            <CardBoundary key={post.id}>
-                                                <PostCard post={post} />
-                                            </CardBoundary>
-                                        ))}
-                                    {activeTab === "comments" && [...comments.items]
-                                        .sort((a, b) =>
-                                            sortOrder === "desc" ? b.created_utc - a.created_utc :
-                                                sortOrder === "asc" ? a.created_utc - b.created_utc :
-                                                    (b.score ?? 0) - (a.score ?? 0)
-                                        )
-                                        .map((comment) => (
-                                            <CardBoundary key={comment.id}>
-                                                <CommentCard comment={comment} />
-                                            </CardBoundary>
-                                        ))}
+                                        .flatMap((item, i) => {
+                                            const card = (
+                                                <CardBoundary key={item.id}>
+                                                    {activeTab === "posts"
+                                                        ? <PostCard post={item} />
+                                                        : <CommentCard comment={item} />}
+                                                </CardBoundary>
+                                            );
+                                            // An ad slot before every AD_INTERVAL-th result, capped so a
+                                            // full 100-item page doesn't mount two dozen third-party iframes.
+                                            const showAd = i > 0 && i % AD_INTERVAL === 0 && i / AD_INTERVAL <= MAX_ADS_PER_PAGE;
+                                            return showAd
+                                                ? [
+                                                    <CardBoundary key={`ad-${activeTab}-${i}`}>
+                                                        <AdCard zone={adZone} />
+                                                    </CardBoundary>,
+                                                    card,
+                                                ]
+                                                : [card];
+                                        })}
                                 </div>
                                 <Pagination
                                     page={active.page}
