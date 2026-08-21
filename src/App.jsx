@@ -709,6 +709,13 @@ const ADSTERRA_MOBILE  = { key: "5e82b1aa83c800fb66617abf14abebc7", width: 320, 
 const ADSTERRA_MOBILE_QUERY = "(max-width: 767px)";
 const AD_INTERVAL = 6; // one ad slot before every Nth result, all the way down the page
 
+// Monetag Vignette (full-screen ad on a click boundary, frequency-capped on
+// their end). Mobile only, and only once a search has run — the landing page
+// stays ad-free. Loads at most once per pageview; the script stays for the
+// rest of the session once injected.
+const MONETAG_VIGNETTE_ZONE = "11620757";
+const MONETAG_VIGNETTE_SRC = "https://n6wxm.com/vignette.min.js";
+
 // Adsterra's invoke.js uses document.write, which only works safely inside its
 // own document — each instance gets its own iframe so multiple ad slots on one
 // page don't clobber each other's atOptions. srcDoc + sandbox (without
@@ -2172,6 +2179,16 @@ export default function App() {
 
     const isMobileViewport = useIsMobileViewport();
     const adZone = isMobileViewport ? ADSTERRA_MOBILE : ADSTERRA_DESKTOP;
+
+    const vignetteLoaded = useRef(false);
+    useEffect(() => {
+        if (!searched || !isMobileViewport || vignetteLoaded.current) return;
+        vignetteLoaded.current = true;
+        const s = document.createElement("script");
+        s.dataset.zone = MONETAG_VIGNETTE_ZONE;
+        s.src = MONETAG_VIGNETTE_SRC;
+        document.body.appendChild(s);
+    }, [searched, isMobileViewport]);
 
     useEffect(() => {
         // No retry: this ping only decides whether to show the outage banner,
