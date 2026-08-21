@@ -5,7 +5,10 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  // .claude holds background-task worktrees (full repo copies — linting them
+  // double-counts every finding); public/sw.js is a third-party service worker
+  // served verbatim, not app code.
+  globalIgnores(['dist', '.claude', 'public/sw.js']),
   {
     files: ['**/*.{js,jsx}'],
     extends: [
