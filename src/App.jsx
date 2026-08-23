@@ -701,86 +701,6 @@ function StatusBadges({ item, type }) {
 
 // ─── Post Card ────────────────────────────────────────────────────────────────
 
-const ADSTERRA_DESKTOP = { key: "f37be9380936d013550d2030d6b5fc04", width: 728, height: 90 };
-const ADSTERRA_MOBILE  = { key: "5e82b1aa83c800fb66617abf14abebc7", width: 320, height: 50 };
-// 767px, not Tailwind's sm (639px): the results column is min(768, vw) - 32px,
-// so the 728px desktop banner only fits from a 768px viewport up. Below that,
-// the 320px mobile zone is the widest unit that fits.
-const ADSTERRA_MOBILE_QUERY = "(max-width: 767px)";
-const AD_INTERVAL = 6; // one ad slot before every Nth result, all the way down the page
-
-// Adsterra's invoke.js uses document.write, which only works safely inside its
-// own document — each instance gets its own iframe so multiple ad slots on one
-// page don't clobber each other's atOptions. srcDoc + sandbox (without
-// allow-same-origin) keeps the ad script in an opaque origin: it can't read
-// the parent page (the ?u= username), touch its storage, or navigate it, and
-// the declarative document sidesteps StrictMode double-effects entirely.
-function AdBanner({ zone }) {
-    const srcDoc = `<!DOCTYPE html><html><head><style>body{margin:0;padding:0;overflow:hidden;}</style></head><body>
-        <script data-cfasync="false" type="text/javascript">
-            atOptions = {
-                'key' : '${zone.key}',
-                'format' : 'iframe',
-                'height' : ${zone.height},
-                'width' : ${zone.width},
-                'params' : {}
-            };
-        </script>
-        <script data-cfasync="false" type="text/javascript" src="https://www.highperformanceformat.com/${zone.key}/invoke.js"></script>
-    </body></html>`;
-
-    return (
-        <iframe
-            title="Advertisement"
-            srcDoc={srcDoc}
-            sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation"
-            width={zone.width}
-            height={zone.height}
-            scrolling="no"
-            tabIndex={-1}
-            style={{ border: "none", overflow: "hidden", display: "block", margin: "0 auto", flexShrink: 0 }}
-        />
-    );
-}
-
-function useIsMobileViewport() {
-    const [isMobile, setIsMobile] = useState(() => window.matchMedia(ADSTERRA_MOBILE_QUERY).matches);
-
-    useEffect(() => {
-        const mq = window.matchMedia(ADSTERRA_MOBILE_QUERY);
-        const handler = (e) => setIsMobile(e.matches);
-        mq.addEventListener("change", handler);
-        return () => mq.removeEventListener("change", handler);
-    }, []);
-
-    return isMobile;
-}
-
-// Mounts the ad iframe only once the slot is within ~800px of the viewport,
-// so a long results page doesn't fire impressions for slots the user never
-// scrolls near (which tanks viewability stats). Once mounted, it stays.
-function AdCard({ zone }) {
-    const ref = useRef(null);
-    const [visible, setVisible] = useState(false);
-
-    useEffect(() => {
-        if (visible) return;
-        const el = ref.current;
-        if (!el) return;
-        const obs = new IntersectionObserver(([entry]) => {
-            if (entry.isIntersecting) setVisible(true);
-        }, { rootMargin: "800px 0px" });
-        obs.observe(el);
-        return () => obs.disconnect();
-    }, [visible]);
-
-    return (
-        <div ref={ref} className="overflow-x-auto" style={{ minHeight: zone.height }}>
-            {visible && <AdBanner key={zone.key} zone={zone} />}
-        </div>
-    );
-}
-
 function PostCard({ post, embedded = false }) {
     const [bodyOpen, setBodyOpen]               = useState(false);
     const [comments, setComments]               = useState(null); // null = not fetched
@@ -2170,9 +2090,6 @@ export default function App() {
 
     const arcticIsDown = dinoForced || arcticHealthDown || posts.arcticDown || comments.arcticDown;
 
-    const isMobileViewport = useIsMobileViewport();
-    const adZone = isMobileViewport ? ADSTERRA_MOBILE : ADSTERRA_DESKTOP;
-
     useEffect(() => {
         // No retry: this ping only decides whether to show the outage banner,
         // and a late-arriving failure would yank an already-rendered result
@@ -2797,24 +2714,13 @@ export default function App() {
                                                 sortOrder === "asc" ? a.created_utc - b.created_utc :
                                                     (b.score ?? 0) - (a.score ?? 0)
                                         )
-                                        .flatMap((item, i) => {
-                                            const card = (
-                                                <CardBoundary key={item.id}>
-                                                    {activeTab === "posts"
-                                                        ? <PostCard post={item} />
-                                                        : <CommentCard comment={item} />}
-                                                </CardBoundary>
-                                            );
-                                            const showAd = i > 0 && i % AD_INTERVAL === 0;
-                                            return showAd
-                                                ? [
-                                                    <CardBoundary key={`ad-${activeTab}-${i}`}>
-                                                        <AdCard zone={adZone} />
-                                                    </CardBoundary>,
-                                                    card,
-                                                ]
-                                                : [card];
-                                        })}
+                                        .map((item) => (
+                                            <CardBoundary key={item.id}>
+                                                {activeTab === "posts"
+                                                    ? <PostCard post={item} />
+                                                    : <CommentCard comment={item} />}
+                                            </CardBoundary>
+                                        ))}
                                 </div>
                                 <Pagination
                                     page={active.page}
