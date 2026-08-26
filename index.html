@@ -1,9 +1,6 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <!-- Monetag vignette -->
-  <script>(function(s){s.dataset.zone='11620757',s.src='https://n6wxm.com/vignette.min.js'})([document.documentElement, document.body].filter(Boolean).pop().appendChild(document.createElement('script')))</script>
-
   <meta charset="UTF-8" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -42,6 +39,13 @@
 
   <!-- Theme -->
   <meta name="theme-color" content="#0d0d0d" />
+
+  <!-- Unregister the old ad service worker for returning visitors -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(regs){ regs.forEach(function(r){ r.unregister(); }); });
+    }
+  </script>
 
   <!-- Google Analytics -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-T6Z3V68K4F"></script>
