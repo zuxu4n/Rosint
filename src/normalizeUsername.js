@@ -12,6 +12,6 @@ export function normalizeUsername(input) {
     // Leading slashes, then optional u/ /user/ prefix, then a leading @
     s = s.replace(/^\/+/, "").replace(/^(u|user)\//i, "").replace(/^@/, "");
     // Drop any trailing slash / query / whitespace
-    s = s.replace(/[\/?#].*$/, "").trim();
+    s = s.replace(/[/?#].*$/, "").trim();
     return s;
 }

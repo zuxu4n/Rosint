@@ -48,12 +48,17 @@
   </script>
 
   <!-- Google Analytics -->
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-T6Z3V68K4F"></script>
   <script>
+    if (!/^\/(admin|removal)(\/|$)/.test(window.location.pathname)) {
+    var analyticsScript = document.createElement('script');
+    analyticsScript.async = true;
+    analyticsScript.src = 'https://www.googletagmanager.com/gtag/js?id=G-T6Z3V68K4F';
+    document.head.appendChild(analyticsScript);
     window.dataLayer = window.dataLayer || [];
     function gtag(){dataLayer.push(arguments);}
     gtag('js', new Date());
     gtag('config', 'G-T6Z3V68K4F');
+    }
   </script>
 
   <!-- Structured data -->

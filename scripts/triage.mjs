@@ -15,11 +15,14 @@
 // availability backstop, not a second opinion.
 //
 // Env:
-//   GEMINI_API_KEY     required for the primary path
-//   GEMINI_MODEL       optional (default gemini-3.6-flash)
-//   CF_ACCOUNT_ID      optional, enables the fallback
-//   CF_API_TOKEN       optional, enables the fallback
-//   CF_MODEL           optional (default @cf/meta/llama-3.1-8b-instruct)
+//   GEMINI_API_KEY         required for the primary path
+//   GEMINI_MODEL           optional (default gemini-3.6-flash)
+//   TRIAGE_CF_ACCOUNT_ID   optional, enables the fallback
+//   TRIAGE_CF_API_TOKEN    optional, enables the fallback
+//   CF_MODEL               optional (default @cf/meta/llama-3.1-8b-instruct)
+//
+// The Cloudflare names avoid CF_ACCOUNT_ID / CF_API_TOKEN, which Wrangler would
+// read from .env as its own deploy credentials. The old names still work here.
 //
 // Usage:
 //   node scripts/triage.mjs <username>
@@ -275,9 +278,9 @@ async function askGemini(prompt) {
 }
 
 async function askCloudflare(prompt) {
-    const acct = process.env.CF_ACCOUNT_ID;
-    const token = process.env.CF_API_TOKEN;
-    if (!acct || !token) throw new Error("CF_ACCOUNT_ID / CF_API_TOKEN not set");
+    const acct = process.env.TRIAGE_CF_ACCOUNT_ID || process.env.CF_ACCOUNT_ID;
+    const token = process.env.TRIAGE_CF_API_TOKEN || process.env.CF_API_TOKEN;
+    if (!acct || !token) throw new Error("TRIAGE_CF_ACCOUNT_ID / TRIAGE_CF_API_TOKEN not set");
 
     const res = await fetch(
         `https://api.cloudflare.com/client/v4/accounts/${acct}/ai/run/${CF_MODEL}`,

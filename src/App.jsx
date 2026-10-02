@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, useRef, Component } from "react";
 import { normalizeUsername } from "./normalizeUsername.js";
+import { dynamicallyBlocked } from "./blocklist.js";
 
 // ─── API Config ───────────────────────────────────────────────────────────────
 
@@ -205,7 +206,7 @@ async function isBlockedUser(name) {
     if (!norm) return false;
     const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(norm));
     const hex = [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
-    return BLOCKED_HASHES.includes(hex);
+    return BLOCKED_HASHES.includes(hex) || await dynamicallyBlocked(hex);
 }
 
 function buildUrls(username, type, pagination = {}, dateFilters = {}) {
@@ -479,6 +480,8 @@ function ratioSeries(numeratorSeries, denominatorSeries) {
 }
 
 async function fetchBoth(username, type, pagination = {}, dateFilters = {}) {
+    // Recheck on pagination too; a removal may have been approved since search.
+    if (await isBlockedUser(username)) return { items: [], sources: [], arcticDown: false };
     const { arctic, pullpush } = buildUrls(username, type, pagination, dateFilters);
     const [arcticRes, pullpushRes] = await Promise.all([
         safeFetch(arctic),
@@ -2053,13 +2056,15 @@ function DateRangeControl({ dateFrom, dateTo, setDateFrom, setDateTo }) {
 }
 
 export default function App() {
-    const [username, setUsername] = useState("");
-    const [query, setQuery] = useState("");
+    const initialUser = useMemo(() => normalizeUsername(new URLSearchParams(window.location.search).get("u")), []);
+    const initialSearchStarted = useRef(false);
+    const [username, setUsername] = useState(initialUser);
+    const [query, setQuery] = useState(initialUser);
     const [activeTab, setActiveTab] = useState("posts");
     const [searched, setSearched] = useState(
-        () => new URLSearchParams(window.location.search).has("dino")
+        () => !!initialUser || new URLSearchParams(window.location.search).has("dino")
     );
-    const [initialLoading, setInitialLoading] = useState(false);
+    const [initialLoading, setInitialLoading] = useState(!!initialUser);
     const [dateFrom, setDateFrom] = useState("");
     const [dateTo, setDateTo] = useState("");
     const [subreddit, setSubreddit] = useState("");
@@ -2132,37 +2137,29 @@ export default function App() {
     // Nothing here touches the network — posts/comments are cleared locally, and
     // UserSummary is suppressed at the render site because it would otherwise
     // fetch and display real archive counts for the account.
-    const runDecoySearch = async () => {
+    const runDecoySearch = useCallback(async () => {
         posts.clear();
         comments.clear();
         setSearchBlocked(true);
         setInitialLoading(true);
         await sleep(1000 + Math.random() * 2000);
         setInitialLoading(false);
-    };
+    }, [posts, comments]);
 
     useEffect(() => {
-        const params = new URLSearchParams(window.location.search);
-        const u = normalizeUsername(params.get("u"));
-        if (!u) return;
-        setUsername(u);
-        setQuery(u);
-        setSearched(true);
-        // Show the spinner BEFORE the block check, not after. isBlockedUser is
-        // async (crypto.subtle.digest), so there is a window where `searched` is
-        // already true but `searchBlocked` is still false — and UserSummary would
-        // mount and fetch the very name we are about to refuse to look up. It is
-        // gated on !initialLoading, so raising the flag first closes that window.
-        setInitialLoading(true);
-        isBlockedUser(u).then((blocked) => {
+        if (!initialUser || initialSearchStarted.current) return;
+        initialSearchStarted.current = true;
+        // The initial state raises the spinner before rendering a deep link,
+        // so UserSummary cannot fetch before the asynchronous block check.
+        isBlockedUser(initialUser).then((blocked) => {
             if (blocked) { runDecoySearch(); return; }
             setSearchBlocked(false);
             setInitialLoading(true);
-            Promise.all([posts.reset(u, {}), comments.reset(u, {})]).then(() => {
+            Promise.all([posts.reset(initialUser, {}), comments.reset(initialUser, {})]).then(() => {
                 setInitialLoading(false);
             });
         });
-    }, []);
+    }, [initialUser, posts, comments, runDecoySearch]);
 
     const searchUser = useCallback(async (rawUser, { push = true } = {}) => {
         const user = normalizeUsername(rawUser);
@@ -2189,7 +2186,7 @@ export default function App() {
         await Promise.all([posts.reset(user, filters), comments.reset(user, filters)]);
         setAppliedSubreddit(subreddit.trim());
         setInitialLoading(false);
-    }, [buildFilters, posts, comments, subreddit]);
+    }, [buildFilters, posts, comments, subreddit, runDecoySearch]);
 
     // Browser back/forward: re-run the search in the URL, or return to the landing page
     useEffect(() => {
@@ -2218,7 +2215,7 @@ export default function App() {
     // not just the two search entry points. Retry and Clear both take the name
     // from state and refetch, so without this a blocked search could be turned
     // into a real one by pressing a button that is still on screen.
-    const fetchOrDecoy = async (name, filters) => {
+    const fetchOrDecoy = useCallback(async (name, filters) => {
         // Raise the spinner and clear the stale health verdict in the same
         // batch, so the maintenance screen hands off to the loading state
         // instead of flashing an empty result page while isBlockedUser runs.
@@ -2229,12 +2226,12 @@ export default function App() {
         setInitialLoading(true);
         await Promise.all([posts.reset(name, filters), comments.reset(name, filters)]);
         setInitialLoading(false);
-    };
+    }, [posts, comments, runDecoySearch]);
 
     const handleRetry = useCallback(async () => {
         if (!query) return;
         await fetchOrDecoy(query, buildFilters());
-    }, [query, buildFilters, posts, comments]);
+    }, [query, buildFilters, fetchOrDecoy]);
 
     const clearFilters = useCallback(async () => {
         setDateFrom("");
@@ -2246,13 +2243,13 @@ export default function App() {
         setAppliedSubreddit("");
         if (!query) return;
         await fetchOrDecoy(query, {});
-    }, [query, posts, comments]);
+    }, [query, fetchOrDecoy]);
 
     const applyFilters = useCallback(async () => {
         if (!query) return;
         setAppliedSubreddit(subreddit.trim());
         await fetchOrDecoy(query, buildFilters());
-    }, [query, subreddit, buildFilters, posts, comments]);
+    }, [query, subreddit, buildFilters, fetchOrDecoy]);
 
     const active = activeTab === "posts" ? posts : comments;
     const allSources = [...new Set([...posts.sources, ...comments.sources])];

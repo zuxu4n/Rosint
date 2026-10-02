@@ -7,9 +7,13 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
+    "test": "node --test tests/*.test.mjs",
+    "deploy:check": "wrangler deploy --dry-run",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@neon/config": "^1.8.3",
+    "@neon/env": "^1.4.8",
     "@vercel/analytics": "^2.0.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
@@ -26,6 +30,7 @@
     "globals": "^17.4.0",
     "postcss": "^8.5.8",
     "tailwindcss": "^3.4.19",
-    "vite": "^8.0.1"
+    "vite": "^8.0.1",
+    "wrangler": "^4.145.0"
   }
 }

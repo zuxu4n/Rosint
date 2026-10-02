@@ -130,14 +130,8 @@
             color: #818384;
             margin-bottom: 22px;
         }
-        .policy .removal-box {
-            border: 1px solid #4a4a4b;
-            border-radius: 0;
-            padding: 12px 14px;
-            margin-top: 20px;
-            margin-bottom: 0;
-            background: rgba(255, 140, 90, 0.05);
-        }
+        .privacy-section[open] ~ .top-right { position: static; text-align: left; margin-top: 48px; }
+        .privacy-section[open] ~ .side-panel { position: static; align-items: flex-start; margin-top: 24px; }
         .section-spacer { margin-top: 0; }
         .updates-title {
             display: block;
@@ -172,6 +166,22 @@
             gap: 16px;
             flex-wrap: wrap;
         }
+        .removal-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 36px;
+            padding: 0 16px;
+            border: 1px solid #ed6023;
+            border-radius: 7px;
+            background: #1a1a1b;
+            color: #fff;
+            font: 700 14px Arial, sans-serif;
+            text-decoration: none;
+            transition: background 0.15s ease;
+        }
+        .removal-button:hover { background: #ed6023; }
+        .removal-button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
     </style>
 </head>
 <body>
@@ -179,26 +189,35 @@
 <div class="kofi-row">
     <script type='text/javascript' src='https://storage.ko-fi.com/cdn/widget/Widget_2.js'></script>
     <script type='text/javascript'>kofiwidget2.init('Support me!', '#ed6023', 'V0C520357J');kofiwidget2.draw();</script>
+    <a class="removal-button" href="https://removal.rosint.dev/" target="_blank" rel="noopener noreferrer" aria-label="Removal request (opens in a new tab)">Removal request</a>
 </div>
 
 <details class="privacy-section">
-    <summary id="privacy">Privacy &amp; <span style="background:rgba(255,140,90,0.22); padding:0 5px;">Removal Requests</span></summary>
+    <summary id="privacy">Privacy</summary>
 
     <div class="policy">
-        <p class="effective">Effective: August 20, 2026</p>
+        <p class="effective">Effective: September 30, 2026</p>
 
-        <p><strong>rosint.dev</strong> has no backend, no accounts, and does not store your searches.</p>
-
-        <p><strong>On this site we use:</strong></p>
+        <p><strong>rosint.dev</strong> lets you search without an account. Search queries still go directly from your browser to the archives.</p>
+        <p><strong>On search pages we use:</strong></p>
         <ul>
             <li><strong>Google Analytics 4</strong>: cookies and visit metrics. See <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Google's privacy policy</a>.</li>
         </ul>
 
         <p><strong>When you search:</strong> your browser sends the query directly to <a href="https://arctic-shift.photon-reddit.com" target="_blank" rel="noopener noreferrer">Arctic Shift</a> and <a href="https://pullpush.io" target="_blank" rel="noopener noreferrer">PullPush</a>. These requests do not pass through our server. Arctic Shift does not publish a privacy policy. By searching, you accept that.</p>
 
-        <p id="removal-info" class="removal-box"><strong>Removals:</strong> email <a href="mailto:rosint-removal@proton.me">rosint-removal@proton.me</a> with your username. I can restrict an account from being searched, but I cannot remove individual posts or comments, and I am not legally obligated to remove anything. It is recommended to remove data from the source. For data removal at the source, contact the services directly: <a href="https://removals.pullpush.io/" target="_blank" rel="noopener noreferrer">PullPush</a> and <a href="https://docs.google.com/forms/d/e/1FAIpQLSfzkmE8Bg6K_xii7aRm66ljzvo2tR59lTsdJ99acW4WX786Vw/viewform?usp=sf_link" target="_blank" rel="noopener noreferrer">ArcticShift</a>.</p>
     </div>
 </details>
+
+<script>
+    function openPrivacySection() {
+        if (window.location.hash === '#privacy') {
+            document.querySelector('.privacy-section').open = true;
+        }
+    }
+    openPrivacySection();
+    window.addEventListener('hashchange', openPrivacySection);
+</script>
 
 <img id="changelog" src="/updatesnstuff.png" alt="Updates n Stuff" class="updates-title" />
 

@@ -8,7 +8,7 @@ export default defineConfig([
   // .claude holds background-task worktrees (full repo copies — linting them
   // double-counts every finding); public/sw.js is a third-party service worker
   // served verbatim, not app code.
-  globalIgnores(['dist', '.claude', 'public/sw.js']),
+  globalIgnores(['dist', '.claude', '.npm-cache', '.wrangler', 'public/sw.js']),
   {
     files: ['**/*.{js,jsx}'],
     extends: [

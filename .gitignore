@@ -8,6 +8,9 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+.npm-cache/
+.dev.vars
+.wrangler/
 dist
 dist-ssr
 *.local
