@@ -18,6 +18,10 @@ Run the removal demo from the private checkout, normally on `127.0.0.1:5174`. Se
 
 Run `npm test`, `npm run lint`, `npm run build`, and `npm run deploy:check` separately in each repository. Tests and dry-runs do not validate live PostgreSQL, Access policies, provider keys, or hosting permissions.
 
+## Logs and monitoring
+
+wrangler.jsonc enables Workers Logs with invocation logs off and query strings redacted, so only the Worker's `public_proxy_failure` event (an error name) is stored. An hourly workflow in the private repository checks that rosint.dev/admin redirects to the service and that the live bundle still contains the restriction check. Workers Builds deploys master on every push, so a failed run right after a push usually means the wrong commit went live. See the private repository's docs/application-state.md.
+
 ## Release order
 
 1. Configure the private service's PostgreSQL/Hyperdrive, apply all four migrations, and establish runtime grants.

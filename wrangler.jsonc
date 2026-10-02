@@ -3,6 +3,13 @@
   "main": "worker/index.js",
   "compatibility_date": "2026-01-01",
   "workers_dev": false,
+  // Workers Logs keeps only the app's structured failure events, at full rate.
+  // Invocation logs are off because they record request details such as headers.
+  "observability": {
+    "enabled": true,
+    "redact_query_string": true,
+    "logs": { "enabled": true, "head_sampling_rate": 1, "invocation_logs": false }
+  },
   "account_id": "345eeb908609d9675b2ca53fd9a7735a",
   "routes": [
     { "pattern": "rosint.dev", "custom_domain": true },
