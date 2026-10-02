@@ -41,3 +41,7 @@ requests/
 *.njsproj
 *.sln
 *.sw?
+
+# Local working notes for Claude; not published.
+CLAUDE.md
+HANDOFF.md
