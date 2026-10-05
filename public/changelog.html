@@ -223,6 +223,12 @@
 <img id="changelog" src="/updatesnstuff.png" alt="Updates n Stuff" class="updates-title" />
 
 <div class="entry">
+    <div class="entry-title">Profile links now check for bots</div>
+    <div class="entry-date">10/5/2026</div>
+    <div class="entry-desc">Opening a profile link like rosint.dev/?u=name may now show a quick Cloudflare check before the search runs, and search engines are asked not to crawl these links. This keeps bots from running searches through the site and overloading the archives. Shared links still work, and searching from the homepage is unchanged.</div>
+</div>
+
+<div class="entry">
     <div class="entry-title">Comment pages load their posts in one request</div>
     <div class="entry-date">10/5/2026</div>
     <div class="entry-desc">Viewing a user's comments used to ask Arctic Shift for each comment's post separately, about 100 requests at once, which tripped its rate limits and left many posts missing. The site now asks for all of a page's posts in one request, never asks for the same post twice, and waits as long as a rate limit asks before retrying.</div>
