@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef, Component } from "react";
 import { normalizeUsername } from "./normalizeUsername.js";
 import { dynamicallyBlocked } from "./blocklist.js";
+import { createPostLookup, retryAfterMs, MAX_RETRY_AFTER_MS } from "./postLookup.js";
 
 // ─── API Config ───────────────────────────────────────────────────────────────
 
@@ -8,6 +9,9 @@ const ARCTIC   = "https://arctic-shift.photon-reddit.com";
 const PULLPUSH = "https://api.pullpush.io";
 const REDDIT_BASE = "https://www.reddit.com";
 const LIMIT = 100;
+
+// Parent posts for comment cards, batched and cached by ID.
+const lookupPost = createPostLookup({ base: ARCTIC });
 
 // Usernames that have requested removal. Lowercase, no "u/" prefix.
 // Adding a name here makes the site refuse to query the archives for it.
@@ -379,6 +383,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // stalling behind a doomed second request.
 async function safeFetch(url, { retry = true } = {}) {
     let retryable = true;
+    let delay = SAFE_FETCH_RETRY_DELAY_MS;
     try {
         const res = await fetch(url, { headers: { Accept: "application/json" } });
         if (res.ok) {
@@ -386,9 +391,12 @@ async function safeFetch(url, { retry = true } = {}) {
             return { data: json?.data ?? [], ok: true };
         }
         retryable = res.status === 429 || res.status >= 500;
+        // Honor Retry-After, and skip the retry when it asks for a long wait.
+        delay = retryAfterMs(res) ?? delay;
+        if (delay > MAX_RETRY_AFTER_MS) retryable = false;
     } catch { /* network error — retryable */ }
     if (retry && retryable) {
-        await sleep(SAFE_FETCH_RETRY_DELAY_MS);
+        await sleep(delay);
         return safeFetch(url, { retry: false });
     }
     return { data: [], ok: false };
@@ -962,7 +970,7 @@ function CommentCard({ comment, isNested = false, skipPostLoad = false }) {
     const [repliesLoading, setRepliesLoading] = useState(false);
     const [moreCount, setMoreCount]           = useState(null);
 
-    const threadId  = comment.link_id?.replace(/^t3_/, "");
+    const threadId  = typeof comment.link_id === "string" ? comment.link_id.replace(/^t3_/, "") : undefined;
     const url       = `${REDDIT_BASE}${comment.permalink}`;
     const threadUrl = threadId ? `${REDDIT_BASE}/comments/${threadId}` : url;
     const img       = getCommentImage(comment);
@@ -971,8 +979,8 @@ function CommentCard({ comment, isNested = false, skipPostLoad = false }) {
     useEffect(() => {
         if (!threadId || isNested || skipPostLoad) return;
         let cancelled = false;
-        safeFetch(`${ARCTIC}/api/posts/ids?ids=${threadId}`)
-            .then(({ data }) => { if (!cancelled && data[0]) setPost(data[0]); });
+        lookupPost(threadId)
+            .then((found) => { if (!cancelled && found) setPost(found); });
         return () => { cancelled = true; };
     }, [threadId, isNested, skipPostLoad]);
 
