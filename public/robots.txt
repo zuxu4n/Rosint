@@ -1,4 +1,7 @@
 User-agent: *
 Allow: /
+# Profile links run a search in the browser.
+Disallow: /*?u=
+Disallow: /*&u=
 
 Sitemap: https://rosint.dev/sitemap.xml
