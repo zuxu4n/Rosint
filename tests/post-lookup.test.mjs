@@ -14,6 +14,7 @@ function setup(respond) {
         wait: async ms => { waits.push(ms); },
         schedule: fn => queued.push(fn),
         now: () => Date.parse('2026-10-05T00:00:00Z'),
+        random: () => 0,
     });
     const flush = () => { while (queued.length) queued.shift()(); };
     return { lookup, calls, waits, flush };
@@ -56,7 +57,7 @@ test('cached posts and missing posts are never requested again', async () => {
     assert.deepEqual(idsOf(calls[1]), ['n3']);
 });
 
-test('a rate-limited batch retries once after Retry-After', async () => {
+test('a rate-limited batch retries after Retry-After', async () => {
     const { lookup, calls, waits, flush } = setup((url, n) => n === 1
         ? new Response('', { status: 429, headers: { 'Retry-After': '7' } })
         : found(url));
@@ -67,22 +68,22 @@ test('a rate-limited batch retries once after Retry-After', async () => {
     assert.deepEqual(waits, [7000]);
 });
 
-test('a batch that fails twice resolves to no post and can be tried again later', async () => {
+test('a batch that keeps failing resolves to no post and can be tried again later', async () => {
     let fail = true;
     const { lookup, calls, waits, flush } = setup(url => fail ? new Response('', { status: 503 }) : found(url));
     const result = Promise.all([lookup('a1'), lookup('a1')]);
     flush();
     assert.deepEqual(await result, [null, null]);
-    assert.equal(calls.length, 2);
-    assert.deepEqual(waits, [1500]);
+    assert.equal(calls.length, 4);
+    assert.deepEqual(waits, [1500, 3000, 6000]);
     fail = false;
     const retry = lookup('a1');
     flush();
     assert.equal((await retry).id, 'a1');
-    assert.equal(calls.length, 3);
+    assert.equal(calls.length, 5);
 });
 
-test('network errors retry once; rejections and long waits do not retry', async () => {
+test('network errors retry; rejections and long waits do not retry', async () => {
     const network = setup((url, n) => { if (n === 1) throw new TypeError('offline'); return found(url); });
     const a = network.lookup('a1');
     network.flush();
