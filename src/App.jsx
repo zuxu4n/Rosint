@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef, Component } from "react";
 import { normalizeUsername } from "./normalizeUsername.js";
 import { dynamicallyBlocked } from "./blocklist.js";
-import { createPostLookup, retryAfterMs, MAX_RETRY_AFTER_MS } from "./postLookup.js";
+import { createPostLookup, fetchWithBackoff } from "./postLookup.js";
 
 // ─── API Config ───────────────────────────────────────────────────────────────
 
@@ -372,34 +372,26 @@ function getCommentImage(comment) {
     return null;
 }
 
-const SAFE_FETCH_RETRY_DELAY_MS = 1500;
-
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// A single automatic retry after a short delay, but only for failures that can
-// plausibly clear on their own: 429 rate limits, 5xx, and network errors.
-// Deterministic 4xx (404s, Arctic's 422 keyword rejection for very active
-// users) fail fast so fetchBoth can degrade to PullPush immediately instead of
-// stalling behind a doomed second request.
-async function safeFetch(url, { retry = true } = {}) {
-    let retryable = true;
-    let delay = SAFE_FETCH_RETRY_DELAY_MS;
+// Retries with exponential backoff (see fetchWithBackoff), but only for
+// failures that can plausibly clear on their own: 429 rate limits, 5xx, and
+// network errors. Deterministic 4xx (404s, Arctic's 422 keyword rejection for
+// very active users) fail fast so fetchBoth can degrade to PullPush
+// immediately instead of stalling behind doomed retries.
+async function safeFetch(url, { retry = true, onRetry } = {}) {
+    const res = await fetchWithBackoff(url, {
+        init: { headers: { Accept: "application/json" } },
+        retries: retry ? undefined : 0,
+        onRetry,
+    });
+    if (!res) return { data: [], ok: false };
     try {
-        const res = await fetch(url, { headers: { Accept: "application/json" } });
-        if (res.ok) {
-            const json = await res.json();
-            return { data: json?.data ?? [], ok: true };
-        }
-        retryable = res.status === 429 || res.status >= 500;
-        // Honor Retry-After, and skip the retry when it asks for a long wait.
-        delay = retryAfterMs(res) ?? delay;
-        if (delay > MAX_RETRY_AFTER_MS) retryable = false;
-    } catch { /* network error — retryable */ }
-    if (retry && retryable) {
-        await sleep(delay);
-        return safeFetch(url, { retry: false });
+        const json = await res.json();
+        return { data: json?.data ?? [], ok: true };
+    } catch {
+        return { data: [], ok: false };
     }
-    return { data: [], ok: false };
 }
 
 async function fetchTimeSeries(key, { precision = "hour", hours = 24 } = {}) {
@@ -487,13 +479,13 @@ function ratioSeries(numeratorSeries, denominatorSeries) {
         .filter(Boolean);
 }
 
-async function fetchBoth(username, type, pagination = {}, dateFilters = {}) {
+async function fetchBoth(username, type, pagination = {}, dateFilters = {}, { onRetry } = {}) {
     // Recheck on pagination too; a removal may have been approved since search.
     if (await isBlockedUser(username)) return { items: [], sources: [], arcticDown: false };
     const { arctic, pullpush } = buildUrls(username, type, pagination, dateFilters);
     const [arcticRes, pullpushRes] = await Promise.all([
-        safeFetch(arctic),
-        safeFetch(pullpush),
+        safeFetch(arctic, { onRetry }),
+        safeFetch(pullpush, { onRetry }),
     ]);
 
     const seen = new Set();
@@ -1713,19 +1705,23 @@ function usePaginatedFetch(type) {
     const [pageStack, setPageStack] = useState([]);
     const [storedFilters, setStoredFilters] = useState({});
     const [arcticDown, setArcticDown] = useState(false);
+    // True once safeFetch has started retrying the current request.
+    const [retrying, setRetrying] = useState(false);
 
     // Guards against a slow response landing after a newer request has already
-    // rendered: only the latest call may write state. The retry in safeFetch
-    // can hold a doomed request open for 1.5s+, which is plenty of time for the
-    // user to have started a different search.
+    // rendered: only the latest call may write state. The backoff in safeFetch
+    // can hold a request open for 10s+, which is plenty of time for the user to
+    // have started a different search.
     const seqRef = useRef(0);
 
     const _fetch = useCallback(async (username, pagination, filters) => {
         const seq = ++seqRef.current;
         setLoading(true);
+        setRetrying(false);
         setError(null);
+        const onRetry = () => { if (seq === seqRef.current) setRetrying(true); };
         try {
-            const { items: data, sources: srcs, arcticDown: down } = await fetchBoth(username, type, pagination, filters);
+            const { items: data, sources: srcs, arcticDown: down } = await fetchBoth(username, type, pagination, filters, { onRetry });
             if (seq !== seqRef.current) return null; // superseded by a newer request
             setItems(data);
             setSources(srcs);
@@ -1737,7 +1733,10 @@ function usePaginatedFetch(type) {
             setItems([]);
             return [];
         } finally {
-            if (seq === seqRef.current) setLoading(false);
+            if (seq === seqRef.current) {
+                setLoading(false);
+                setRetrying(false);
+            }
         }
     }, [type]);
 
@@ -1792,7 +1791,7 @@ function usePaginatedFetch(type) {
         setArcticDown(false);
     }, []);
 
-    return { items, sources, loading, error, page, arcticDown, reset, clear, goNext, goPrev };
+    return { items, sources, loading, retrying, error, page, arcticDown, reset, clear, goNext, goPrev };
 }
 
 // ─── Dino Game (shown during maintenance) ──────────────────────────────────────
@@ -2698,7 +2697,12 @@ export default function App() {
                         {initialLoading || active.loading ? (
                             <div className="flex items-center justify-center py-20 gap-3 text-[#818384]">
                                 <IconSpinner />
-                                <span className="text-sm">Fetching from Arctic Shift + PullPush…</span>
+                                <div className="flex flex-col">
+                                    <span className="text-sm">Fetching from Arctic Shift + PullPush…</span>
+                                    {(active.retrying || (initialLoading && (posts.retrying || comments.retrying))) && (
+                                        <span className="text-xs">Still trying, the server is busy...</span>
+                                    )}
+                                </div>
                             </div>
                         ) : active.error ? (
                             <ErrorState message={active.error} onRetry={handleRetry} />

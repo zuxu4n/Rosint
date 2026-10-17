@@ -4,6 +4,8 @@
 export const POST_IDS_PER_REQUEST = 500;
 export const DEFAULT_RETRY_DELAY_MS = 1500;
 export const MAX_RETRY_AFTER_MS = 60000;
+export const MAX_RETRIES = 3;
+export const RETRY_JITTER = 0.25;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -16,35 +18,64 @@ export function retryAfterMs(response, now = Date.now) {
     return Number.isNaN(date) ? null : Math.max(0, date - now());
 }
 
+// Exponential backoff for the nth retry (0-based): 1.5s, 3s, 6s, each
+// stretched by up to 25% random jitter so clients do not retry in lockstep.
+export function backoffDelayMs(retry, random = Math.random) {
+    return Math.round(DEFAULT_RETRY_DELAY_MS * 2 ** retry * (1 + RETRY_JITTER * random()));
+}
+
+// Fetches url and resolves to the ok Response, or null once it gives up.
+// Only failures that can clear on their own are retried: 429, 5xx and network
+// errors. Other 4xx responses and Retry-After waits over MAX_RETRY_AFTER_MS
+// fail at once. onRetry(n) fires as the nth retry request goes out.
+export async function fetchWithBackoff(url, {
+    init,
+    retries = MAX_RETRIES,
+    fetcher = (...args) => fetch(...args),
+    wait = sleep,
+    now = Date.now,
+    random = Math.random,
+    onRetry,
+} = {}) {
+    for (let attempt = 0; ; attempt++) {
+        let res = null;
+        try {
+            res = await fetcher(url, init);
+        } catch { /* network error - retryable */ }
+        if (res?.ok) return res;
+        if (res && res.status !== 429 && res.status < 500) return null;
+        if (attempt >= retries) return null;
+        const delay = retryAfterMs(res, now) ?? backoffDelayMs(attempt, random);
+        if (delay > MAX_RETRY_AFTER_MS) return null;
+        await wait(delay);
+        onRetry?.(attempt + 1);
+    }
+}
+
 export function createPostLookup({
     base,
     fetcher = (...args) => fetch(...args),
     wait = sleep,
     schedule = (fn) => setTimeout(fn, 0),
     now = Date.now,
+    random = Math.random,
 } = {}) {
     const cache = new Map(); // id -> Promise<post | null>
     let pending = new Map(); // id -> resolve, for the batch being collected
 
     async function request(ids) {
         const url = `${base}/api/posts/ids?ids=${ids.join(",")}`;
-        for (let attempt = 0; attempt < 2; attempt++) {
-            let delay = DEFAULT_RETRY_DELAY_MS;
-            try {
-                const res = await fetcher(url, { headers: { Accept: "application/json" } });
-                if (res.ok) {
-                    const json = await res.json();
-                    if (Array.isArray(json?.data)) return json.data;
-                    return null;
-                }
-                // Other 4xx responses will not clear on their own.
-                if (res.status !== 429 && res.status < 500) return null;
-                delay = retryAfterMs(res, now) ?? delay;
-            } catch { /* network error - retryable */ }
-            if (attempt === 1 || delay > MAX_RETRY_AFTER_MS) return null;
-            await wait(delay);
+        const res = await fetchWithBackoff(url, {
+            init: { headers: { Accept: "application/json" } },
+            fetcher, wait, now, random,
+        });
+        if (!res) return null;
+        try {
+            const json = await res.json();
+            return Array.isArray(json?.data) ? json.data : null;
+        } catch {
+            return null;
         }
-        return null;
     }
 
     async function flush() {
