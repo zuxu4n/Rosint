@@ -2087,28 +2087,23 @@ export default function App() {
     const EXAMPLE_USERS = ["spez", "GallowBoob", "Unidan", "kn0thing"];
 
     // ?dino in the URL forces the maintenance screen (which hosts the dino game)
-    // so it can be tested without waiting for a real Arctic Shift outage.
-    const [arcticHealthDown, setArcticHealthDown] = useState(false);
-    // ?dino keeps forcing the maintenance screen no matter what searches or
-    // retries do — it's a test hook, so it must not be clearable from the UI.
+    // so it can be tested without waiting for a real Arctic Shift outage. It
+    // keeps forcing it no matter what searches or retries do — it's a test
+    // hook, so it must not be clearable from the UI.
     const dinoForced = useMemo(
         () => new URLSearchParams(window.location.search).has("dino"), []
     );
-    const [bannerDismissed, setBannerDismissed] = useState(false);
     const [searchBlocked, setSearchBlocked] = useState(false);
 
     const posts = usePaginatedFetch("posts");
     const comments = usePaginatedFetch("comments");
 
-    const arcticIsDown = dinoForced || arcticHealthDown || posts.arcticDown || comments.arcticDown;
+    const arcticIsDown = dinoForced || posts.arcticDown || comments.arcticDown;
 
-    useEffect(() => {
-        // No retry: this ping only decides whether to show the outage banner,
-        // and a late-arriving failure would yank an already-rendered result
-        // page back to the maintenance screen.
-        safeFetch(`${ARCTIC}/api/posts/search?author=spez&limit=1`, { retry: false })
-            .then(({ ok }) => { if (!ok) setArcticHealthDown(true); });
-    }, []);
+    // Outage state comes only from real searches. There is deliberately no
+    // health ping on page load: it spent one of each visitor's Arctic Shift
+    // requests before they searched, and a single failed ping showed the
+    // outage banner even when searches would have worked.
 
     useEffect(() => {
         document.title = searched && query
@@ -2182,10 +2177,6 @@ export default function App() {
         // Same reason as the deep-link path above: raise the spinner before the
         // async block check so UserSummary can't mount against a blocked name.
         setInitialLoading(true);
-        // A fresh search re-derives outage state from its own fetch — the
-        // one-shot health probe must not keep a stale "down" verdict latched
-        // over results that are about to load fine.
-        setArcticHealthDown(false);
         if (await isBlockedUser(user)) { await runDecoySearch(); return; }
         setSearchBlocked(false);
         setInitialLoading(true);
@@ -2223,11 +2214,9 @@ export default function App() {
     // from state and refetch, so without this a blocked search could be turned
     // into a real one by pressing a button that is still on screen.
     const fetchOrDecoy = useCallback(async (name, filters) => {
-        // Raise the spinner and clear the stale health verdict in the same
-        // batch, so the maintenance screen hands off to the loading state
-        // instead of flashing an empty result page while isBlockedUser runs.
+        // Raise the spinner first so Retry shows its loading state while
+        // isBlockedUser runs.
         setInitialLoading(true);
-        setArcticHealthDown(false);
         if (await isBlockedUser(name)) { await runDecoySearch(); return; }
         setSearchBlocked(false);
         setInitialLoading(true);
@@ -2391,19 +2380,6 @@ export default function App() {
             </header>
 
             <main className="flex-1">
-                {arcticIsDown && !bannerDismissed && !searched && (
-                    <div className="bg-amber-900/40 border-b border-amber-700/50 px-4 py-2 flex items-center justify-between gap-3">
-                        <p className="text-[12px] text-amber-300">
-                            <span className="font-semibold">Search is briefly unavailable.</span>
-                            {" "}The server is under a lot of load. Retrying in a few seconds usually works. If it keeps failing it may be down for a couple of hours.
-                        </p>
-                        <button onClick={() => setBannerDismissed(true)}
-                                aria-label="Dismiss"
-                                className="text-amber-500 hover:text-amber-300 flex-shrink-0 transition-colors text-lg leading-none">
-                            ×
-                        </button>
-                    </div>
-                )}
                 <div className={`max-w-3xl mx-auto px-4 transition-all duration-300 ${searched ? "pt-6" : "pt-20"}`}>
                     {!searched && (
                         <div className="text-center mb-2">
@@ -2530,7 +2506,7 @@ export default function App() {
                                 Sorry about that!
                             </p>
                             <p className="text-[#a8a8a9] text-sm leading-relaxed">
-                                The site is under a lot of load right now! Please try again in a few seconds. If the error persists, it may be down for a couple of hours.
+                                The archive we search is busy right now. Please try again in a few seconds. If the error persists, it may be down for a couple of hours.
                             </p>
                             <DinoGame />
                             <button
