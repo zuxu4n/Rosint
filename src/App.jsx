@@ -1678,7 +1678,7 @@ function SecondaryGlobalChart({
 
 function GlobalChartsPanel({ compact }) {
     return (
-        <section className={`mx-auto px-4 mb-32 ${compact ? "mt-3" : "mt-6"}`} style={{ maxWidth: '730px' }}>
+        <section className={`mx-auto px-4 mb-8 ${compact ? "mt-3" : "mt-6"}`} style={{ maxWidth: '730px' }}>
             <div className="grid gap-4 md:grid-cols-2">
                 <TotalActivityChart />
                 <SecondaryGlobalChart
@@ -2262,7 +2262,7 @@ export default function App() {
     const allSources = [...new Set([...posts.sources, ...comments.sources])];
 
     return (
-        <div className="min-h-screen bg-[#0d0d0d] text-[#d7dadc]" style={{ fontFamily: "'Sora', sans-serif" }}>
+        <div className="min-h-screen min-h-svh flex flex-col bg-[#0d0d0d] text-[#d7dadc]" style={{ fontFamily: "'Sora', sans-serif" }}>
             <style>{`
                 @keyframes face-in {
                     0%   { transform: translate(-50%, -50%) scale(0.1); opacity: 0; }
@@ -2390,7 +2390,7 @@ export default function App() {
                 </div>
             </header>
 
-            <main>
+            <main className="flex-1">
                 {arcticIsDown && !bannerDismissed && !searched && (
                     <div className="bg-amber-900/40 border-b border-amber-700/50 px-4 py-2 flex items-center justify-between gap-3">
                         <p className="text-[12px] text-amber-300">
@@ -2745,8 +2745,11 @@ export default function App() {
                 )}
             </main>
 
+            {/* In normal flow (pinned by the flex column), not position: fixed.
+                A fixed footer rides up with the on-screen keyboard on small
+                phones and covers the username field (issue #14). */}
             {!searched && (
-                <footer className="fixed bottom-0 left-0 right-0 z-10 py-2 bg-[#0d0d0d] border-t border-[#1c1c1d]" style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom))' }}>
+                <footer className="mt-8 py-2 bg-[#0d0d0d] border-t border-[#1c1c1d]" style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom))' }}>
                     <p className="text-[11px] text-[#3a3a3b] leading-relaxed text-center">
                         RedditOSINT is a free tool to search deleted Reddit posts, removed comments, and private Reddit accounts using open-source archives including{" "}
                         <a href="https://github.com/ArthurHeitmann/arctic_shift" target="_blank" rel="noopener noreferrer" className="text-[#3a3a3b] hover:underline transition-colors">Arctic Shift</a>
