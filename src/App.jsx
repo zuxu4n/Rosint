@@ -2520,7 +2520,7 @@ export default function App() {
                                 Sorry about that!
                             </p>
                             <p className="text-[#a8a8a9] text-sm leading-relaxed">
-                                The site is under a lot of load right now! Please try again in a few seconds. If the error persists, it may be down for a couple of hours.
+                                The archive we search is busy right now. Please try again in a few seconds. If the error persists, it may be down for a couple of hours.
                             </p>
                             <DinoGame />
                             <button
