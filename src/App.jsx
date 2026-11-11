@@ -2087,10 +2087,9 @@ export default function App() {
     const EXAMPLE_USERS = ["spez", "GallowBoob", "Unidan", "kn0thing"];
 
     // ?dino in the URL forces the maintenance screen (which hosts the dino game)
-    // so it can be tested without waiting for a real Arctic Shift outage.
-    const [arcticHealthDown, setArcticHealthDown] = useState(false);
-    // ?dino keeps forcing the maintenance screen no matter what searches or
-    // retries do — it's a test hook, so it must not be clearable from the UI.
+    // so it can be tested without waiting for a real Arctic Shift outage. It
+    // keeps forcing it no matter what searches or retries do — it's a test
+    // hook, so it must not be clearable from the UI.
     const dinoForced = useMemo(
         () => new URLSearchParams(window.location.search).has("dino"), []
     );
@@ -2100,15 +2099,12 @@ export default function App() {
     const posts = usePaginatedFetch("posts");
     const comments = usePaginatedFetch("comments");
 
-    const arcticIsDown = dinoForced || arcticHealthDown || posts.arcticDown || comments.arcticDown;
+    const arcticIsDown = dinoForced || posts.arcticDown || comments.arcticDown;
 
-    useEffect(() => {
-        // No retry: this ping only decides whether to show the outage banner,
-        // and a late-arriving failure would yank an already-rendered result
-        // page back to the maintenance screen.
-        safeFetch(`${ARCTIC}/api/posts/search?author=spez&limit=1`, { retry: false })
-            .then(({ ok }) => { if (!ok) setArcticHealthDown(true); });
-    }, []);
+    // Outage state comes only from real searches. There is deliberately no
+    // health ping on page load: it spent one of each visitor's Arctic Shift
+    // requests before they searched, and a single failed ping showed the
+    // outage banner even when searches would have worked.
 
     useEffect(() => {
         document.title = searched && query
@@ -2182,10 +2178,6 @@ export default function App() {
         // Same reason as the deep-link path above: raise the spinner before the
         // async block check so UserSummary can't mount against a blocked name.
         setInitialLoading(true);
-        // A fresh search re-derives outage state from its own fetch — the
-        // one-shot health probe must not keep a stale "down" verdict latched
-        // over results that are about to load fine.
-        setArcticHealthDown(false);
         if (await isBlockedUser(user)) { await runDecoySearch(); return; }
         setSearchBlocked(false);
         setInitialLoading(true);
@@ -2223,11 +2215,9 @@ export default function App() {
     // from state and refetch, so without this a blocked search could be turned
     // into a real one by pressing a button that is still on screen.
     const fetchOrDecoy = useCallback(async (name, filters) => {
-        // Raise the spinner and clear the stale health verdict in the same
-        // batch, so the maintenance screen hands off to the loading state
-        // instead of flashing an empty result page while isBlockedUser runs.
+        // Raise the spinner first so Retry shows its loading state while
+        // isBlockedUser runs.
         setInitialLoading(true);
-        setArcticHealthDown(false);
         if (await isBlockedUser(name)) { await runDecoySearch(); return; }
         setSearchBlocked(false);
         setInitialLoading(true);
