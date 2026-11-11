@@ -2093,7 +2093,6 @@ export default function App() {
     const dinoForced = useMemo(
         () => new URLSearchParams(window.location.search).has("dino"), []
     );
-    const [bannerDismissed, setBannerDismissed] = useState(false);
     const [searchBlocked, setSearchBlocked] = useState(false);
 
     const posts = usePaginatedFetch("posts");
@@ -2381,19 +2380,6 @@ export default function App() {
             </header>
 
             <main className="flex-1">
-                {arcticIsDown && !bannerDismissed && !searched && (
-                    <div className="bg-amber-900/40 border-b border-amber-700/50 px-4 py-2 flex items-center justify-between gap-3">
-                        <p className="text-[12px] text-amber-300">
-                            <span className="font-semibold">Search is briefly unavailable.</span>
-                            {" "}The server is under a lot of load. Retrying in a few seconds usually works. If it keeps failing it may be down for a couple of hours.
-                        </p>
-                        <button onClick={() => setBannerDismissed(true)}
-                                aria-label="Dismiss"
-                                className="text-amber-500 hover:text-amber-300 flex-shrink-0 transition-colors text-lg leading-none">
-                            ×
-                        </button>
-                    </div>
-                )}
                 <div className={`max-w-3xl mx-auto px-4 transition-all duration-300 ${searched ? "pt-6" : "pt-20"}`}>
                     {!searched && (
                         <div className="text-center mb-2">
